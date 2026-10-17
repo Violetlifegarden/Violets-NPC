@@ -43,8 +43,8 @@ object GlbRenderContent {
 
     fun register(bus: IEventBus) {
         // The model-descriptor table is common data: the server cycles an NPC's modelId through it, the client
-        // resolves paths from it. Populate on both dists before either side can query it.
-        GlbModels.registerBuiltins()
+        // resolves paths from it. Load it (config JSON, else builtins) on both dists before either side queries it.
+        GlbModels.load()
 
         ENTITY_TYPES.register(bus)
         ITEMS.register(bus)
