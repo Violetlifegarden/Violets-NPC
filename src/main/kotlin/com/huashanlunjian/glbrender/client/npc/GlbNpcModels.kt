@@ -1,5 +1,7 @@
 package com.huashanlunjian.glbrender.client.npc
 
+import com.huashanlunjian.glbrender.client.npc.anim.GlbNpcAnimator
+import com.huashanlunjian.glbrender.client.npc.anim.NpcAnimRuntime
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.mojang.logging.LogUtils
@@ -28,7 +30,9 @@ object GlbNpcModels {
 
     /** Holds the entity alongside its instance so [pruneRemoved] can test [net.minecraft.world.entity.Entity.isRemoved]
      *  without a client-side UUID->entity lookup (ClientLevel only indexes by network id). */
-    private class Entry(val entity: GlbNpc, var instance: ModelInstance)
+    private class Entry(val entity: GlbNpc, var instance: ModelInstance) {
+        val anim = NpcAnimRuntime()
+    }
 
     private val instances = HashMap<UUID, Entry>()
 
@@ -41,16 +45,26 @@ object GlbNpcModels {
         // Reuse the cached instance only while it still belongs to the current scene; a modelId switch hands us a
         // different scene, so drop the old reference (its refcount) and build a fresh instance for the new one.
         val cached = instances[entity.uuid]
-        val instance = if (cached != null && cached.instance.scene === scene) {
-            cached.instance
+        val entry = if (cached != null && cached.instance.scene === scene) {
+            cached
         } else {
             cached?.instance?.decreaseReferenceCount()
-            ModelInstance.Factory.of(scene).also { it.increaseReferenceCount() }
-                .also { instances[entity.uuid] = Entry(entity, it) }
+            Entry(entity, ModelInstance.Factory.of(scene).also { it.increaseReferenceCount() })
+                .also { instances[entity.uuid] = it }
         }
-
+        val instance = entry.instance
 
         try {
+            // Drive this frame's clip (priority table over the model's glTF clips) into the instance's bones BEFORE
+            // updateRenderData recomputes world transforms from them — same ordering as the player clip path.
+            val clips = GlbModelRegistry.clipsFor(modelId)
+            if (!clips.isNullOrEmpty()) {
+                val gameTick = Minecraft.getInstance().level?.gameTime ?: entity.tickCount.toLong()
+                GlbNpcAnimator.animate(
+                    entry.anim, entity, instance, clips,
+                    GlbModelRegistry.animationTable, gameTick, partialTick,
+                )
+            }
             instance.updateRenderData(partialTick)
             val minecraft = Minecraft.getInstance()
             val target = minecraft.mainRenderTarget

@@ -1,5 +1,7 @@
 package com.huashanlunjian.glbrender.client.npc
 
+import com.huashanlunjian.glbrender.client.npc.anim.GlbAnimationTable
+import com.huashanlunjian.glbrender.client.npc.anim.GlbAnimationTables
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.mojang.logging.LogUtils
@@ -9,13 +11,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.minecraft.client.Minecraft
+import top.fifthlight.blazerod.model.animation.Animation
 import top.fifthlight.blazerod.model.loader.LoadContext
 import top.fifthlight.blazerod.model.loader.LoadResult
 import top.fifthlight.blazerod.model.loader.ModelFileLoader
+import top.fifthlight.blazerod.render.api.animation.AnimationItem
 import top.fifthlight.blazerod.render.api.loader.ModelLoader
 import top.fifthlight.blazerod.render.api.render.Renderer
 import top.fifthlight.blazerod.render.api.render.RendererTypeHolder
 import top.fifthlight.blazerod.render.api.resource.RenderScene
+import top.fifthlight.blazerod.render.runtime.animation.AnimationItemImpl
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.file.Path
@@ -40,6 +45,19 @@ object GlbModelRegistry {
 
     /** The shared renderer, or null until the first model finishes loading. */
     fun renderer(): Renderer<*, *>? = sharedRenderer
+
+    /** The stock locomotion/life-state animation table shared by every NPC model. */
+    val animationTable: GlbAnimationTable by lazy { GlbAnimationTables.default() }
+
+    /**
+     * The glTF clips resolved for [id], or null until its scene finishes loading. An empty list means the model
+     * carries no clips (the animator then leaves the bind pose untouched). Kicks off the same async load as
+     * [sceneFor], so callers usually hit [sceneFor] first and read this right after.
+     */
+    fun clipsFor(id: String): List<AnimationItemImpl>? {
+        val state = loadStates[id] ?: return null
+        return if (state.scene == null) null else state.clips
+    }
 
     /**
      * Returns the loaded scene for [id], kicking off an async load on first request and returning null while it is
@@ -79,10 +97,11 @@ object GlbModelRegistry {
                 // auto-closes, and the next NPC that walks back in gets a closed scene -> "already closed" crash. A
                 // 3c reload must decreaseReferenceCount the evicted scene to balance this.
                 loadedScene.increaseReferenceCount()
+                state.clips = buildClips(loadedScene, loaded.animations ?: emptyList())
                 state.scene = loadedScene
                 LOGGER.info(
-                    "glbrender: npc scene ready for {} ({}) ({} nodes)",
-                    descriptor.id, descriptor.modelPath, loadedScene.nodes.size,
+                    "glbrender: npc scene ready for {} ({}) ({} nodes, {} clips)",
+                    descriptor.id, descriptor.modelPath, loadedScene.nodes.size, state.clips.size,
                 )
             } catch (error: Throwable) {
                 state.failed = true
@@ -107,9 +126,20 @@ object GlbModelRegistry {
             fileLoader.load(path, LoadContext.File(path.parent))
         }
 
+    /** Builds an [AnimationItemImpl] per glTF clip the model carries, dropping (and logging) any that fail to load. */
+    private fun buildClips(scene: RenderScene, animations: List<Animation>): List<AnimationItemImpl> =
+        animations.mapNotNull { animation ->
+            runCatching { AnimationItem.Factory.load(scene, animation) }
+                .onFailure { LOGGER.warn("glbrender: could not load npc clip {}", animation.name, it) }
+                .getOrNull()
+        }.filterIsInstance<AnimationItemImpl>()
+
     private class LoadState {
         var started = false
         var failed = false
+
+        @Volatile
+        var clips: List<AnimationItemImpl> = emptyList()
 
         @Volatile
         var scene: RenderScene? = null
