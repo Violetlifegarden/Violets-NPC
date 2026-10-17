@@ -73,6 +73,12 @@ object GlbModelRegistry {
                 val loadedScene = ModelLoader.Factory.create().loadModel(model)
                     ?: error("Model loaded into no scene")
                 if (sharedRenderer == null) sharedRenderer = RendererTypeHolder.vertexShaderTransform.create()
+                // The cache OWNS one reference on the scene for as long as it stays cached. Each ModelInstance takes
+                // its own ref (ModelInstanceImpl.init -> scene.increaseReferenceCount) and drops it on close, so
+                // without this the scene's refcount hits 0 when the last NPC leaves render distance, RenderSceneImpl
+                // auto-closes, and the next NPC that walks back in gets a closed scene -> "already closed" crash. A
+                // 3c reload must decreaseReferenceCount the evicted scene to balance this.
+                loadedScene.increaseReferenceCount()
                 state.scene = loadedScene
                 LOGGER.info(
                     "glbrender: npc scene ready for {} ({}) ({} nodes)",

@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.npc
 
+import com.mojang.logging.LogUtils
 import net.minecraft.network.syncher.EntityDataAccessor
 import net.minecraft.network.syncher.EntityDataSerializers
 import net.minecraft.network.syncher.SynchedEntityData
@@ -38,9 +39,12 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         // client renderer. Replaced by a right-click UI later.
         if (!level().isClientSide && hand == InteractionHand.MAIN_HAND) {
             val ids = GlbModels.ids()
+            LOGGER.info("glbrender: npc {} interact, registered models {}", stringUUID, ids)
             if (ids.size >= 2) {
                 val current = modelId.ifEmpty { GlbModels.defaultId }
-                modelId = ids[(ids.indexOf(current) + 1).mod(ids.size)]
+                val next = ids[(ids.indexOf(current) + 1).mod(ids.size)]
+                modelId = next
+                LOGGER.info("glbrender: npc {} model {} -> {}", stringUUID, current, next)
             }
         }
         return InteractionResult.sidedSuccess(level().isClientSide)
@@ -52,6 +56,8 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun checkDespawn() {}
 
     companion object {
+        private val LOGGER = LogUtils.getLogger()
+
         private val DATA_MODEL_ID: EntityDataAccessor<String> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
 
