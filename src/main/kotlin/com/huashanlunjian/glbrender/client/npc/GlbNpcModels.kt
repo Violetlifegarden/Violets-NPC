@@ -55,6 +55,17 @@ object GlbNpcModels {
     private var loadFailed = false
     private val instances = HashMap<UUID, ModelInstance>()
 
+    /**
+     * Rewinds the renderer's ring-buffer data pool. MUST run exactly once per rendered frame, before any entity
+     * draw: each [draw] allocates per-node upload space from a pool that only resets on [Renderer.rotate], so
+     * without this the pool grows unbounded every frame and `growCapacity` eventually exceeds the GL max buffer
+     * size, throwing GL_INVALID_VALUE (the "renders a few frames then dies every frame" symptom). Hooked to
+     * RenderLevelStageEvent.AFTER_SKY by [GlbNpcClient].
+     */
+    fun rotateForFrame() {
+        renderer?.rotate()
+    }
+
     fun draw(entity: GlbNpc, yaw: Float, partialTick: Float, packedLight: Int) {
         if (loadFailed || modelPath == null) return
         if (!loadStarted) startLoad()
