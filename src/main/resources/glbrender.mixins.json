@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.huashanlunjian.glbrender.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "LightTextureAccessors",
+    "MinecraftUpdateTitleMixin",
+    "OverlayTextureAccessors"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

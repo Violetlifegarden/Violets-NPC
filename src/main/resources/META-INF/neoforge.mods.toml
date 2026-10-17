@@ -1,0 +1,31 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "LGPL-3.0-or-later"
+
+[[mods]]
+modId = "glbrender"
+version = "0.1.0"
+displayName = "GLB Render"
+authors = "华山抡舰"
+credits = "Derived from BlazeRod / ArmorStand by the TouchController organization"
+description = '''
+GlTF/GLB model rendering library for Minecraft 1.21.1, ported from BlazeRod.
+Provides model loading (GLB/glTF) and a render scene API for replacing the player model.
+'''
+
+[[dependencies.glbrender]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.glbrender]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"
+
+[[mixins]]
+config = "glbrender.mixins.json"

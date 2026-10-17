@@ -1,0 +1,25 @@
+# build outputs
+build/
+.gradle/
+out/
+bin/
+
+# game run dir: downloaded assets, generated configs, logs
+run/
+
+# runtime log dirs
+logs/
+
+# logs & crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
