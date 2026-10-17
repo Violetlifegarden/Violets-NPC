@@ -1,5 +1,6 @@
 package top.fifthlight.blazerod.render.runtime.renderer
 
+import top.fifthlight.blazerod.gl.GlbId
 import top.fifthlight.blazerod.gl.TextureFormat
 import top.fifthlight.blazerod.gl.GpuBufferSlice
 import top.fifthlight.blazerod.gl.BlendFunction
@@ -12,7 +13,6 @@ import com.mojang.blaze3d.systems.RenderSystem
 import it.unimi.dsi.fastutil.ints.Int2ReferenceAVLTreeMap
 import it.unimi.dsi.fastutil.ints.Int2ReferenceMap
 import net.minecraft.client.renderer.LightTexture
-import net.minecraft.resources.ResourceLocation
 import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector2i
@@ -200,14 +200,14 @@ class VertexShaderTransformRenderer private constructor() :
 
                         is RenderMaterial.Unlit -> {
                             withLocation(
-                                ResourceLocation.fromNamespaceAndPath(
+                                GlbId.fromNamespaceAndPath(
                                     "blazerod",
                                     "unlit" + pipelineInfo.nameSuffix()
                                 )
                             )
 
-                            withVertexShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/unlit"))
-                            withFragmentShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/unlit"))
+                            withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/unlit"))
+                            withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/unlit"))
                             withBlend(BlendFunction.TRANSLUCENT)
                             withSampler("SamplerBaseColor")
                             withSampler("SamplerLightMap")
@@ -216,14 +216,14 @@ class VertexShaderTransformRenderer private constructor() :
 
                         is RenderMaterial.Vanilla -> {
                             withLocation(
-                                ResourceLocation.fromNamespaceAndPath(
+                                GlbId.fromNamespaceAndPath(
                                     "blazerod",
                                     "vanilla" + pipelineInfo.nameSuffix()
                                 )
                             )
 
-                            withVertexShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/vanilla"))
-                            withFragmentShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/vanilla"))
+                            withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/vanilla"))
+                            withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/vanilla"))
                             withBlend(BlendFunction.TRANSLUCENT)
                             withSampler("SamplerBaseColor")
                             withSampler("SamplerLightMap")

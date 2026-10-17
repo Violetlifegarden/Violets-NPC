@@ -6,7 +6,7 @@ import top.fifthlight.blazerod.render.format.GlbIndexType
 import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
 import top.fifthlight.blazerod.render.format.GlbVertexFormat
 import top.fifthlight.blazerod.render.format.GlbVertexFormatElement
-import net.minecraft.resources.ResourceLocation
+import top.fifthlight.blazerod.gl.GlbId
 import org.lwjgl.glfw.Callbacks
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.glfw.GLFWErrorCallback
@@ -241,9 +241,9 @@ private fun runRenderPassChecks(device: GpuDevice) {
         vertexSize = 24,
     )
     val pipeline = RenderPipeline.builder()
-        .withLocation(ResourceLocation.fromNamespaceAndPath("blazerod", "selftest_unlit"))
-        .withVertexShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/unlit"))
-        .withFragmentShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/unlit"))
+        .withLocation(GlbId.fromNamespaceAndPath("blazerod", "selftest_unlit"))
+        .withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/unlit"))
+        .withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/unlit"))
         .withVertexFormat(meshFormat)
         .withCull(false)
         .withBlend(BlendFunction.TRANSLUCENT)

@@ -1,7 +1,6 @@
 package top.fifthlight.blazerod.gl
 
 import top.fifthlight.blazerod.render.format.GlbVertexFormat
-import net.minecraft.resources.ResourceLocation
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL31
 
@@ -12,9 +11,9 @@ import org.lwjgl.opengl.GL31
  * code imports it from this package.
  */
 class RenderPipeline private constructor(
-    val location: ResourceLocation?,
-    val vertexShader: ResourceLocation,
-    val fragmentShader: ResourceLocation,
+    val location: GlbId?,
+    val vertexShader: GlbId,
+    val fragmentShader: GlbId,
     val vertexFormat: GlbVertexFormat?,
     val isCullEnabled: Boolean,
     val blendFunction: BlendFunction?,
@@ -54,9 +53,9 @@ class RenderPipeline private constructor(
     }
 
     class Builder internal constructor() {
-        private var location: ResourceLocation? = null
-        private var vertexShader: ResourceLocation? = null
-        private var fragmentShader: ResourceLocation? = null
+        private var location: GlbId? = null
+        private var vertexShader: GlbId? = null
+        private var fragmentShader: GlbId? = null
         private var vertexFormat: GlbVertexFormat? = null
         private var isCullEnabled = true
         private var blendFunction: BlendFunction? = null
@@ -66,11 +65,11 @@ class RenderPipeline private constructor(
         private val defineFlags = linkedSetOf<String>()
         private val defineValues = LinkedHashMap<String, String>()
 
-        fun withLocation(location: ResourceLocation) = also { this.location = location }
+        fun withLocation(location: GlbId) = also { this.location = location }
 
-        fun withVertexShader(location: ResourceLocation) = also { this.vertexShader = location }
+        fun withVertexShader(location: GlbId) = also { this.vertexShader = location }
 
-        fun withFragmentShader(location: ResourceLocation) = also { this.fragmentShader = location }
+        fun withFragmentShader(location: GlbId) = also { this.fragmentShader = location }
 
         fun withVertexFormat(format: GlbVertexFormat?) = also { vertexFormat = format }
 
@@ -119,7 +118,7 @@ class RenderPipeline private constructor(
 /** Matches Minecraft's convention: a shader location names a file below `shaders/`. */
 private const val shaderDirectory = "shaders/"
 
-private fun ShaderSourceProvider.readShader(location: ResourceLocation, suffix: String): String =
+private fun ShaderSourceProvider.readShader(location: GlbId, suffix: String): String =
     read(location.namespace, "$shaderDirectory${location.path}$suffix")
         ?: throw IllegalArgumentException("Missing shader ${location}$suffix")
 
