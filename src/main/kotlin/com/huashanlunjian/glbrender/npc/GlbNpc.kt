@@ -1,9 +1,12 @@
 package com.huashanlunjian.glbrender.npc
 
-import com.mojang.logging.LogUtils
+import com.huashanlunjian.glbrender.npc.net.GlbNpcEditing
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.network.chat.Component
+import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
+import net.minecraft.world.MenuProvider
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.PathfinderMob
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier
@@ -11,7 +14,9 @@ import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.goal.FloatGoal
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
+import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.entity.player.Player
+import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.network.syncher.SynchedEntityData
 import net.minecraft.world.level.Level
 
@@ -21,8 +26,7 @@ import net.minecraft.world.level.Level
  *
  * All per-instance state (model id, transform overrides, behavior flags) lives in [config], which owns the synced
  * data, NBT persistence, and typed accessors. [modelId] is a convenience delegate kept for the renderer/interaction
- * callers. Right-clicking currently cycles the model as a TEMPORARY transition mechanism — it will be replaced by a
- * CustomNPC-style right-click editor UI in Step 5.
+ * callers. Right-clicking opens the CustomNPC-style editor menu ([GlbNpcMenu]) after starting an editing session.
  */
 class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(type, level) {
 
@@ -66,17 +70,19 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     }
 
     override fun mobInteract(player: Player, hand: InteractionHand): InteractionResult {
-        // Transition model-switch: cycle to the next registered model on the server; the synced value updates the
-        // client renderer. Replaced by a right-click editor UI in Step 5.
-        if (!level().isClientSide && hand == InteractionHand.MAIN_HAND) {
-            val ids = GlbModels.ids()
-            LOGGER.info("glbrender: npc {} interact, registered models {}", stringUUID, ids)
-            if (ids.size >= 2) {
-                val current = modelId.ifEmpty { GlbModels.defaultId }
-                val next = ids[(ids.indexOf(current) + 1).mod(ids.size)]
-                modelId = next
-                LOGGER.info("glbrender: npc {} model {} -> {}", stringUUID, current, next)
-            }
+        // Right-click opens the CustomNPC-style editor (replaces the temporary model-cycle). Server-side: start an
+        // editing session (so the C2S packets authorize this player for this NPC), then open the container menu,
+        // writing the entity id so the client factory can resolve the same NPC.
+        if (!level().isClientSide && hand == InteractionHand.MAIN_HAND && player is ServerPlayer) {
+            GlbNpcEditing.open(player, this)
+            player.openMenu(
+                object : MenuProvider {
+                    override fun getDisplayName(): Component = Component.literal("GLB NPC")
+                    override fun createMenu(windowId: Int, inv: Inventory, p: Player): AbstractContainerMenu =
+                        GlbNpcMenu(windowId, this@GlbNpc)
+                },
+                { buf -> buf.writeInt(id) },
+            )
         }
         return InteractionResult.sidedSuccess(level().isClientSide)
     }
@@ -87,8 +93,6 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun checkDespawn() {}
 
     companion object {
-        private val LOGGER = LogUtils.getLogger()
-
         fun attributes(): AttributeSupplier.Builder =
             PathfinderMob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0)

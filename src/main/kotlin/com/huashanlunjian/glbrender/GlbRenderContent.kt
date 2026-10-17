@@ -2,14 +2,17 @@ package com.huashanlunjian.glbrender
 
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.GlbNpcMenu
 import com.huashanlunjian.glbrender.npc.net.GlbRenderNetwork
 import net.minecraft.core.registries.Registries
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.MobCategory
+import net.minecraft.world.inventory.MenuType
 import net.minecraft.world.item.Item
 import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.common.DeferredSpawnEggItem
+import net.neoforged.neoforge.common.extensions.IMenuTypeExtension
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent
 import net.neoforged.neoforge.registries.DeferredHolder
 import net.neoforged.neoforge.registries.DeferredRegister
@@ -25,6 +28,7 @@ import java.util.function.Supplier
 object GlbRenderContent {
     private val ENTITY_TYPES = DeferredRegister.create(Registries.ENTITY_TYPE, GlbRenderMod.MOD_ID)
     private val ITEMS = DeferredRegister.create(Registries.ITEM, GlbRenderMod.MOD_ID)
+    private val MENU_TYPES = DeferredRegister.create(Registries.MENU, GlbRenderMod.MOD_ID)
 
     val GLB_NPC: DeferredHolder<EntityType<*>, EntityType<GlbNpc>> =
         ENTITY_TYPES.register(
@@ -42,6 +46,15 @@ object GlbRenderContent {
             Supplier { DeferredSpawnEggItem(GLB_NPC, 0x2B7F8F, 0xF0A0C0, Item.Properties()) },
         )
 
+    /** The NPC editor menu type. The client factory reads the entity id from the open-screen extra data. */
+    val GLB_NPC_MENU: DeferredHolder<MenuType<*>, MenuType<GlbNpcMenu>> =
+        MENU_TYPES.register(
+            "glb_npc_editor",
+            Supplier {
+                IMenuTypeExtension.create { windowId, inv, data -> GlbNpcMenu.client(windowId, inv, data.readInt()) }
+            },
+        )
+
     fun register(bus: IEventBus) {
         // The model-descriptor table is common data: the server cycles an NPC's modelId through it, the client
         // resolves paths from it. Load it (config JSON, else builtins) on both dists before either side queries it.
@@ -49,6 +62,7 @@ object GlbRenderContent {
 
         ENTITY_TYPES.register(bus)
         ITEMS.register(bus)
+        MENU_TYPES.register(bus)
         // Editor C2S payloads are common (a dedicated server receives them too), so register on the mod bus unconditionally.
         GlbRenderNetwork.register(bus)
         bus.addListener(

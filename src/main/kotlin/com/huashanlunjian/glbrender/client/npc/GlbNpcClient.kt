@@ -5,6 +5,7 @@ import net.minecraft.world.item.CreativeModeTabs
 import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.client.event.EntityRenderersEvent
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
 import net.neoforged.neoforge.common.NeoForge
@@ -30,6 +31,16 @@ object GlbNpcClient {
             Consumer { event ->
                 if (event.tabKey == CreativeModeTabs.SPAWN_EGGS) {
                     event.accept(GlbRenderContent.GLB_NPC_SPAWN_EGG.get())
+                }
+            },
+        )
+        // Bind the editor menu to its client screen (the panel opened by GlbNpc.mobInteract).
+        bus.addListener(
+            EventPriority.NORMAL,
+            RegisterMenuScreensEvent::class.java,
+            Consumer { event ->
+                event.register(GlbRenderContent.GLB_NPC_MENU.get()) { menu, inv, title ->
+                    GlbNpcEditorScreen(menu, inv, title)
                 }
             },
         )
