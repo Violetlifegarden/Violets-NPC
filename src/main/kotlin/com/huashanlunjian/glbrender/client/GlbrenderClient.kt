@@ -48,6 +48,8 @@ import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL30
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GlFramebuffers
+import com.huashanlunjian.glbrender.render.MinecraftSamplers
+import com.huashanlunjian.glbrender.render.RenderSystemFrameContext
 import top.fifthlight.blazerod.gl.GpuTexture
 import top.fifthlight.blazerod.gl.GpuTextureView
 import top.fifthlight.blazerod.gl.TextureFormat
@@ -172,6 +174,8 @@ object GlbrenderClient {
 
     fun init(modEventBus: IEventBus) {
         BlazeRod.mainDispatcher = RenderThreadDispatcher
+        Gl.frameContext = RenderSystemFrameContext
+        Gl.samplers = MinecraftSamplers
         modEventBus.addListener(
             EventPriority.NORMAL,
             RegisterKeyMappingsEvent::class.java,

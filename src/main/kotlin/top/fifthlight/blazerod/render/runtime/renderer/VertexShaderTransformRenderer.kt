@@ -9,10 +9,9 @@ import top.fifthlight.blazerod.gl.UniformType
 import top.fifthlight.blazerod.gl.RenderPass
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTextureView
-import com.mojang.blaze3d.systems.RenderSystem
+import top.fifthlight.blazerod.gl.GlbLightTexture
 import it.unimi.dsi.fastutil.ints.Int2ReferenceAVLTreeMap
 import it.unimi.dsi.fastutil.ints.Int2ReferenceMap
-import net.minecraft.client.renderer.LightTexture
 import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector2i
@@ -38,7 +37,6 @@ import top.fifthlight.blazerod.render.runtime.RenderTaskImpl
 import top.fifthlight.blazerod.render.runtime.node.component.PrimitiveComponent
 import top.fifthlight.blazerod.render.runtime.resource.RenderMaterial
 import top.fifthlight.blazerod.render.runtime.resource.RenderPrimitive
-import top.fifthlight.blazerod.render.util.minecraft.MinecraftTextures
 import java.util.*
 
 class VertexShaderTransformRenderer private constructor() :
@@ -253,7 +251,7 @@ class VertexShaderTransformRenderer private constructor() :
 
     /** 1.21.1 has no `RenderSystem.bindDefaultUniforms`, so the projection block is filled in by hand. */
     private fun projectionUniform(colorFrameBuffer: GpuTextureView) = ProjectionUniformBuffer.write {
-        projMat = RenderSystem.getProjectionMatrix()
+        projMat = Gl.frameContext.projectionMatrix()
         viewportSize.set(colorFrameBuffer.width.toFloat(), colorFrameBuffer.height.toFloat())
         screenSize = viewportSize
     }
@@ -310,12 +308,12 @@ class VertexShaderTransformRenderer private constructor() :
             instanceDataUniformBufferSlice = InstanceDataUniformBuffer.write {
                 primitiveSize = scene.primitiveComponents.size
                 this.primitiveIndex = primitiveIndex
-                this.viewMatrix = RenderSystem.getModelViewStack()
+                this.viewMatrix = Gl.frameContext.modelViewMatrix()
                 this.modelMatrices[0] = task.modelMatrix
                 this.modelNormalMatrices[0] = task.modelMatrix.normal(normalMatrix)
                 lightVector.set(
-                    task.light and (LightTexture.FULL_BLOCK or 0xFF0F),
-                    (task.light shr 16) and (LightTexture.FULL_BLOCK or 0xFF0F)
+                    task.light and (GlbLightTexture.FULL_BLOCK or 0xFF0F),
+                    (task.light shr 16) and (GlbLightTexture.FULL_BLOCK or 0xFF0F)
                 )
                 overlayVector.set(
                     task.overlay and 0xFFFF,
@@ -362,7 +360,7 @@ class VertexShaderTransformRenderer private constructor() :
 
             val pipeline = getPipeline(material = material, instanced = false)
             val projectionData = projectionUniform(colorFrameBuffer)
-            val fogData = FogUniformBuffer.writeFromRenderSystem()
+            val fogData = FogUniformBuffer.writeFrom()
 
             renderPass = commandEncoder.createRenderPass(
                 { "BlazeRod render pass (non-instanced)" },
@@ -386,13 +384,13 @@ class VertexShaderTransformRenderer private constructor() :
                     is RenderMaterial.Pbr -> {}
                     is RenderMaterial.Unlit -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
-                        bindSampler("SamplerLightMap", MinecraftTextures.lightMap)
+                        bindSampler("SamplerLightMap", Gl.samplers.lightMap)
                     }
 
                     is RenderMaterial.Vanilla -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
-                        bindSampler("SamplerLightMap", MinecraftTextures.lightMap)
-                        bindSampler("SamplerOverlay", MinecraftTextures.overlay)
+                        bindSampler("SamplerLightMap", Gl.samplers.lightMap)
+                        bindSampler("SamplerOverlay", Gl.samplers.overlay)
                     }
                 }
 
@@ -482,13 +480,13 @@ class VertexShaderTransformRenderer private constructor() :
             instanceDataUniformBufferSlice = InstanceDataUniformBuffer.write {
                 primitiveSize = scene.primitiveComponents.size
                 this.primitiveIndex = component.primitiveIndex
-                this.viewMatrix = RenderSystem.getModelViewStack()
+                this.viewMatrix = Gl.frameContext.modelViewMatrix()
                 for ((index, task) in tasks.withIndex()) {
                     val light = task.light
                     val overlay = task.overlay
                     lightVector.set(
-                        light and (LightTexture.FULL_BLOCK or 0xFF0F),
-                        (light shr 16) and (LightTexture.FULL_BLOCK or 0xFF0F)
+                        light and (GlbLightTexture.FULL_BLOCK or 0xFF0F),
+                        (light shr 16) and (GlbLightTexture.FULL_BLOCK or 0xFF0F)
                     )
                     overlayVector.set(
                         overlay and 0xFFFF,
@@ -541,7 +539,7 @@ class VertexShaderTransformRenderer private constructor() :
 
             val pipeline = getPipeline(material = material, instanced = true)
             val projectionData = projectionUniform(colorFrameBuffer)
-            val fogData = FogUniformBuffer.writeFromRenderSystem()
+            val fogData = FogUniformBuffer.writeFrom()
 
             renderPass = commandEncoder.createRenderPass(
                 { "BlazeRod render pass (instanced)" },
@@ -565,13 +563,13 @@ class VertexShaderTransformRenderer private constructor() :
                     is RenderMaterial.Pbr -> {}
                     is RenderMaterial.Unlit -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
-                        bindSampler("SamplerLightMap", MinecraftTextures.lightMap)
+                        bindSampler("SamplerLightMap", Gl.samplers.lightMap)
                     }
 
                     is RenderMaterial.Vanilla -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
-                        bindSampler("SamplerLightMap", MinecraftTextures.lightMap)
-                        bindSampler("SamplerOverlay", MinecraftTextures.overlay)
+                        bindSampler("SamplerLightMap", Gl.samplers.lightMap)
+                        bindSampler("SamplerOverlay", Gl.samplers.overlay)
                     }
                 }
 

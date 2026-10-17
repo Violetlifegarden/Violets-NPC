@@ -26,6 +26,18 @@ object Gl {
      */
     var shaderSources: ShaderSourceProvider = ShaderSourceProvider.classpath()
 
+    /**
+     * Per-frame camera matrices and fog. Defaults to identity so glb-core can render with no game; the
+     * mod replaces this with a `RenderSystem`-backed context before it draws.
+     */
+    var frameContext: GlbFrameContext = IdentityFrameContext
+
+    /**
+     * The lightmap and overlay atlases the pipelines bind. Defaults to fully-lit white stand-ins for
+     * offscreen rendering; the mod replaces this with the game's atlases before it draws.
+     */
+    var samplers: GlbSamplers = WhiteSamplers
+
     fun init() {
         if (majorVersion != 0) return
         val version = GL11.glGetString(GL11.GL_VERSION)

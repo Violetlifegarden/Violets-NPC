@@ -1,7 +1,8 @@
 package top.fifthlight.blazerod.render.common.runtime.uniform
 
-import com.mojang.blaze3d.systems.RenderSystem
 import org.joml.Vector3f
+import top.fifthlight.blazerod.gl.Gl
+import top.fifthlight.blazerod.gl.GlbFrameContext
 import top.fifthlight.blazerod.gl.GpuBufferSlice
 import top.fifthlight.blazerod.render.common.layout.GpuDataLayout
 import top.fifthlight.blazerod.render.common.layout.LayoutStrategy
@@ -30,13 +31,12 @@ object FogUniformBuffer : UniformBuffer<FogUniformBuffer, FogUniformBuffer.FogLa
 
     private val color = Vector3f()
 
-    fun writeFromRenderSystem(): GpuBufferSlice = write {
-        val fogColor = RenderSystem.getShaderFogColor()
-        color.set(fogColor[0], fogColor[1], fogColor[2])
-        this.fogColor = color
-        fogShape = RenderSystem.getShaderFogShape().index.toFloat()
-        val start = RenderSystem.getShaderFogStart()
-        val end = RenderSystem.getShaderFogEnd()
+    fun writeFrom(frame: GlbFrameContext = Gl.frameContext): GpuBufferSlice = write {
+        frame.fogColor(color)
+        fogColor = color
+        fogShape = frame.fogShape()
+        val start = frame.fogStart()
+        val end = frame.fogEnd()
         fogEnvironmentalStart = start
         fogEnvironmentalEnd = end
         // 1.21.1 has only one fog range, so the two 1.21.2 ranges are the same range here.

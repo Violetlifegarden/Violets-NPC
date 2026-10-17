@@ -20,6 +20,7 @@ import org.lwjgl.opengl.GL43
 import org.lwjgl.system.MemoryUtil
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GlFramebuffers
+import com.huashanlunjian.glbrender.render.RenderSystemFrameContext
 import top.fifthlight.blazerod.gl.GpuTexture
 import top.fifthlight.blazerod.gl.TextureFormat
 import top.fifthlight.blazerod.model.loader.LoadContext
@@ -167,6 +168,7 @@ private suspend fun render(window: Long, modelPath: Path, outputPath: Path, size
     RenderSystem.setShaderFogColor(0.1f, 0.1f, 0.15f)
     RenderSystem.setShaderFogStart(20f)
     RenderSystem.setShaderFogEnd(40f)
+    Gl.frameContext = RenderSystemFrameContext
 
     val renderer = RendererTypeHolder.vertexShaderTransform.create()
     val task = instance.createRenderTask(Matrix4f(), light = FULL_BRIGHT)
