@@ -8,6 +8,9 @@ import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.PathfinderMob
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier
 import net.minecraft.world.entity.ai.attributes.Attributes
+import net.minecraft.world.entity.ai.goal.FloatGoal
+import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
+import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
 import net.minecraft.world.entity.player.Player
 import net.minecraft.network.syncher.SynchedEntityData
 import net.minecraft.world.level.Level
@@ -36,6 +39,20 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun defineSynchedData(builder: SynchedEntityData.Builder) {
         super.defineSynchedData(builder)
         GlbNpcConfig.defineSynchedData(builder)
+    }
+
+    /**
+     * Registers the goal set once. `Mob`'s constructor calls this before [config] exists, so the goals here must be
+     * self-gating (they read [config] inside `canUse`, not in their constructors) — see [GlbWanderGoal] /
+     * [GlbFollowPlayerGoal]. Priority order follows the usual convention: swim out of water first, then follow, then
+     * wander, then look.
+     */
+    override fun registerGoals() {
+        goalSelector.addGoal(0, FloatGoal(this))
+        goalSelector.addGoal(1, GlbFollowPlayerGoal(this))
+        goalSelector.addGoal(2, GlbWanderGoal(this))
+        goalSelector.addGoal(3, LookAtPlayerGoal(this, Player::class.java, 8.0f))
+        goalSelector.addGoal(4, RandomLookAroundGoal(this))
     }
 
     override fun addAdditionalSaveData(tag: CompoundTag) {
