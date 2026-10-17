@@ -78,7 +78,9 @@ object GlbNpcModels {
             // -camera translation into entity geometry), so place the model camera-relative like the player shim.
             val camera = minecraft.gameRenderer.mainCamera.position
             val pos = entity.getPosition(partialTick)
-            val yawRadians = Math.toRadians((180.0 - yaw + descriptor.yawOffset)).toFloat()
+            val scale = entity.config.effectiveScale(descriptor)
+            val groundOffsetY = entity.config.effectiveGroundOffsetY(descriptor)
+            val yawRadians = Math.toRadians((180.0 - yaw + entity.config.effectiveYawOffset(descriptor))).toFloat()
             val bodyMatrix = Matrix4f()
                 .translation(
                     (pos.x - camera.x).toFloat(),
@@ -86,8 +88,8 @@ object GlbNpcModels {
                     (pos.z - camera.z).toFloat(),
                 )
                 .rotateY(yawRadians)
-                .scale(descriptor.scale)
-                .translate(0f, descriptor.groundOffsetY, 0f)
+                .scale(scale)
+                .translate(0f, groundOffsetY, 0f)
             renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), bodyMatrix, packedLight)
         } catch (error: RuntimeException) {
             LOGGER.error("glbrender: npc draw failed", error)

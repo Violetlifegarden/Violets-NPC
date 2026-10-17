@@ -1,9 +1,7 @@
 package com.huashanlunjian.glbrender.npc
 
 import com.mojang.logging.LogUtils
-import net.minecraft.network.syncher.EntityDataAccessor
-import net.minecraft.network.syncher.EntityDataSerializers
-import net.minecraft.network.syncher.SynchedEntityData
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
 import net.minecraft.world.entity.EntityType
@@ -11,32 +9,48 @@ import net.minecraft.world.entity.PathfinderMob
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.player.Player
+import net.minecraft.network.syncher.SynchedEntityData
 import net.minecraft.world.level.Level
 
 /**
  * The NPC: a plain [PathfinderMob] (LivingEntity branch, never a fake Player) that the glbrender
- * [com.huashanlunjian.glbrender.client.npc.GlbNpcRenderer] draws as a GLB model. It carries no goals, so it simply
- * stands where it spawns.
+ * [com.huashanlunjian.glbrender.client.npc.GlbNpcRenderer] draws as a GLB model.
  *
- * The look is chosen by a synced [modelId] (fork A: one EntityType, the id selects the model). Empty means "use the
- * registry default". Right-clicking cycles the id through [GlbModels] as a TEMPORARY transition mechanism — it will
- * be replaced by a CustomNPC-style right-click UI later.
+ * All per-instance state (model id, transform overrides, behavior flags) lives in [config], which owns the synced
+ * data, NBT persistence, and typed accessors. [modelId] is a convenience delegate kept for the renderer/interaction
+ * callers. Right-clicking currently cycles the model as a TEMPORARY transition mechanism — it will be replaced by a
+ * CustomNPC-style right-click editor UI in Step 5.
  */
 class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(type, level) {
 
+    /** Per-instance config: synced data + NBT + typed getters/setters. Initialized after super() (entityData exists). */
+    val config = GlbNpcConfig(this)
+
     /** The model id this NPC renders as; empty falls back to [GlbModels.defaultId] on the client. */
     var modelId: String
-        get() = entityData.get(DATA_MODEL_ID)
-        set(value) = entityData.set(DATA_MODEL_ID, value)
+        get() = config.modelId
+        set(value) {
+            config.modelId = value
+        }
 
     override fun defineSynchedData(builder: SynchedEntityData.Builder) {
         super.defineSynchedData(builder)
-        builder.define(DATA_MODEL_ID, DEFAULT_MODEL_ID)
+        GlbNpcConfig.defineSynchedData(builder)
+    }
+
+    override fun addAdditionalSaveData(tag: CompoundTag) {
+        super.addAdditionalSaveData(tag)
+        config.save(tag)
+    }
+
+    override fun readAdditionalSaveData(tag: CompoundTag) {
+        super.readAdditionalSaveData(tag)
+        config.load(tag)
     }
 
     override fun mobInteract(player: Player, hand: InteractionHand): InteractionResult {
         // Transition model-switch: cycle to the next registered model on the server; the synced value updates the
-        // client renderer. Replaced by a right-click UI later.
+        // client renderer. Replaced by a right-click editor UI in Step 5.
         if (!level().isClientSide && hand == InteractionHand.MAIN_HAND) {
             val ids = GlbModels.ids()
             LOGGER.info("glbrender: npc {} interact, registered models {}", stringUUID, ids)
@@ -57,12 +71,6 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
 
     companion object {
         private val LOGGER = LogUtils.getLogger()
-
-        private val DATA_MODEL_ID: EntityDataAccessor<String> =
-            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
-
-        /** Empty by default so the client resolves it against [GlbModels.defaultId] (which the server may not know). */
-        const val DEFAULT_MODEL_ID = ""
 
         fun attributes(): AttributeSupplier.Builder =
             PathfinderMob.createMobAttributes()
