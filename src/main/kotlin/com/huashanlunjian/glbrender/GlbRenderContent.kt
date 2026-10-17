@@ -2,6 +2,7 @@ package com.huashanlunjian.glbrender
 
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.net.GlbRenderNetwork
 import net.minecraft.core.registries.Registries
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.MobCategory
@@ -48,6 +49,8 @@ object GlbRenderContent {
 
         ENTITY_TYPES.register(bus)
         ITEMS.register(bus)
+        // Editor C2S payloads are common (a dedicated server receives them too), so register on the mod bus unconditionally.
+        GlbRenderNetwork.register(bus)
         bus.addListener(
             EventPriority.NORMAL,
             EntityAttributeCreationEvent::class.java,
