@@ -1,6 +1,5 @@
 package top.fifthlight.blazerod.render.runtime.resource
 
-import com.mojang.blaze3d.platform.NativeImage
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTexture
 import top.fifthlight.blazerod.gl.GpuTextureView
@@ -41,7 +40,7 @@ class RenderTexture(
                 device.createCommandEncoder().writeToTexture(
                     texture = texture,
                     data = buffer,
-                    format = NativeImage.Format.RGBA,
+                    format = TextureFormat.RGBA8,
                     dataOffset = 0,
                     dataStride = 0,
                     x = 0,

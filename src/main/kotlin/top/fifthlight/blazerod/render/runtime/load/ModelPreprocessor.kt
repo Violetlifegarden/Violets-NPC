@@ -6,7 +6,7 @@ import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
 import top.fifthlight.blazerod.render.format.GlbVertexFormats
 import kotlinx.coroutines.*
 import top.fifthlight.blazerod.render.common.resource.MorphTargetGroup
-import top.fifthlight.blazerod.render.extension.NativeImageExt
+import top.fifthlight.blazerod.render.image.GlbImageDecoder
 import top.fifthlight.blazerod.render.common.resource.RenderSkin
 import top.fifthlight.blazerod.model.*
 import top.fifthlight.blazerod.render.api.resource.RenderExpression
@@ -60,14 +60,14 @@ class ModelPreprocessor private constructor(
             val byteBuffer = bufferView.buffer.buffer
                 .slice(bufferView.byteOffset, bufferView.byteLength)
                 .order(ByteOrder.nativeOrder())
-            val nativeImage = try {
-                NativeImageExt.read(null, texture.type, byteBuffer)
+            val pixelSource = try {
+                GlbImageDecoder.decode(null, texture.type, byteBuffer)
             } catch (ex: Exception) {
                 throw Exception("Failed to load texture ${texture.name ?: "unnamed"}", ex)
             }
             TextureLoadData(
                 name = texture.name,
-                nativeImage = nativeImage,
+                pixelSource = pixelSource,
                 sampler = texture.sampler,
             )
         }

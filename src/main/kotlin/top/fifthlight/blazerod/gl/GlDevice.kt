@@ -1,6 +1,5 @@
 package top.fifthlight.blazerod.gl
 
-import com.mojang.blaze3d.platform.NativeImage
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL15
 import org.lwjgl.opengl.GL30
@@ -158,7 +157,7 @@ class CommandEncoder internal constructor() {
     fun writeToTexture(
         texture: GpuTexture,
         data: ByteBuffer,
-        format: NativeImage.Format,
+        format: TextureFormat,
         dataOffset: Int,
         dataStride: Int,
         x: Int,
@@ -167,7 +166,7 @@ class CommandEncoder internal constructor() {
         height: Int,
     ) {
         Gl.init()
-        val pixelSize = format.components()
+        val pixelSize = format.pixelSize
         // A short buffer is an out-of-bounds read inside the driver, which dies as an access violation in
         // native code with nothing to show, so the size is checked while it is still a Java exception.
         val needed = width.toLong() * height * pixelSize

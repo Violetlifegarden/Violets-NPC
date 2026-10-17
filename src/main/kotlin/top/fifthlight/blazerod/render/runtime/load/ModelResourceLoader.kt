@@ -1,10 +1,8 @@
 package top.fifthlight.blazerod.render.common.runtime.load
 
 import top.fifthlight.blazerod.gl.GpuBuffer
-import com.mojang.blaze3d.platform.NativeImage
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTexture
-import top.fifthlight.blazerod.gl.TextureFormat
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -46,21 +44,17 @@ object ModelResourceLoader {
         val textures = info.textures.mapAll(scope, gpuDispatcher) { info ->
             val info = info ?: return@mapAll null
             info.use { info ->
-                val (name, nativeImage, sampler) = info
+                val (name, pixelSource, sampler) = info
                 val device = Gl.device
                 val commandEncoder = device.createCommandEncoder()
                 val gpuTexture: GpuTexture
-                nativeImage.use {
+                pixelSource.use {
                     gpuTexture = device.createTexture(
                         labelGetter = { name ?: "unnamed texture" },
                         GpuTexture.USAGE_TEXTURE_BINDING or GpuTexture.USAGE_COPY_DST,
-                        when (it.format()) {
-                            NativeImage.Format.RGBA -> TextureFormat.RGBA8
-                            NativeImage.Format.RGB -> TextureFormat.RGB8
-                            else -> throw IllegalArgumentException("Unknown texture format: ${it.format()}")
-                        },
-                        nativeImage.width,
-                        nativeImage.height,
+                        it.format,
+                        it.width,
+                        it.height,
                         1,
                         1
                     )
@@ -70,7 +64,7 @@ object ModelResourceLoader {
                         sampler.magFilter.blaze3d,
                         sampler.minFilter.useMipmap,
                     )
-                    commandEncoder.writeToTexture(gpuTexture, nativeImage)
+                    commandEncoder.writeToTexture(gpuTexture, pixelSource)
                 }
                 val textureView = device.createTextureView(gpuTexture)
                 RenderTexture(gpuTexture, textureView)

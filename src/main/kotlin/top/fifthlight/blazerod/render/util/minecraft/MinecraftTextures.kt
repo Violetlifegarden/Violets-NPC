@@ -2,7 +2,6 @@ package top.fifthlight.blazerod.render.util.minecraft
 
 import com.huashanlunjian.glbrender.mixin.LightTextureAccessors
 import com.huashanlunjian.glbrender.mixin.OverlayTextureAccessors
-import com.mojang.blaze3d.platform.NativeImage
 import net.minecraft.client.Minecraft
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTexture
@@ -66,7 +65,7 @@ object MinecraftTextures {
         repeat(16 * 16) { pixels.put(0xFF.toByte()).put(0xFF.toByte()).put(0xFF.toByte()).put(0xFF.toByte()) }
         pixels.rewind()
         device.createCommandEncoder()
-            .writeToTexture(texture, pixels, NativeImage.Format.RGBA, 0, 0, 0, 0, 16, 16)
+            .writeToTexture(texture, pixels, TextureFormat.RGBA8, 0, 0, 0, 0, 16, 16)
         return texture
     }
 }

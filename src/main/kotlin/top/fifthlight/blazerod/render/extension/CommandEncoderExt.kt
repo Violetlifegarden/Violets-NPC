@@ -1,20 +1,20 @@
 package top.fifthlight.blazerod.render.extension
 
-import com.mojang.blaze3d.platform.NativeImage
 import top.fifthlight.blazerod.gl.CommandEncoder
 import top.fifthlight.blazerod.gl.GpuTexture
+import top.fifthlight.blazerod.render.image.PixelSource
 
 /** Uploads a whole decoded image; the shim's own entry point stays buffer based. */
-fun CommandEncoder.writeToTexture(texture: GpuTexture, image: NativeImage) {
+fun CommandEncoder.writeToTexture(texture: GpuTexture, source: PixelSource) {
     writeToTexture(
         texture,
-        NativeImageExt.pixels(image),
-        image.format(),
+        source.pixels,
+        source.format,
         0,
         0,
         0,
         0,
-        image.width,
-        image.height,
+        source.width,
+        source.height,
     )
 }

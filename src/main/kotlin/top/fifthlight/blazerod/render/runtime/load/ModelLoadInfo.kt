@@ -1,6 +1,6 @@
 package top.fifthlight.blazerod.render.common.runtime.load
 
-import com.mojang.blaze3d.platform.NativeImage
+import top.fifthlight.blazerod.render.image.PixelSource
 import top.fifthlight.blazerod.render.format.GlbIndexType
 import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
 import top.fifthlight.blazerod.render.format.GlbVertexFormat
@@ -19,9 +19,9 @@ import top.fifthlight.blazerod.model.Camera as ModelCamera
 
 data class TextureLoadData(
     val name: String?,
-    val nativeImage: NativeImage,
+    val pixelSource: PixelSource,
     val sampler: Texture.Sampler,
-) : AutoCloseable by nativeImage
+) : AutoCloseable by pixelSource
 
 data class IndexBufferLoadData(
     val type: GlbIndexType,
