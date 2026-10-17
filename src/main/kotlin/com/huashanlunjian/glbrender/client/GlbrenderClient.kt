@@ -61,7 +61,9 @@ import top.fifthlight.blazerod.model.loader.ModelFileLoader
 import top.fifthlight.blazerod.render.api.animation.AnimationItem
 import top.fifthlight.blazerod.render.api.loader.ModelLoader
 import top.fifthlight.blazerod.render.api.render.Renderer
+import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
 import top.fifthlight.blazerod.render.api.render.RendererTypeHolder
+import top.fifthlight.blazerod.render.api.render.drawScene
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import top.fifthlight.blazerod.render.api.resource.RenderScene
 import top.fifthlight.blazerod.render.common.BlazeRod
@@ -319,17 +321,15 @@ object GlbrenderClient {
                         (pending.z - cameraPosition.z).toFloat(),
                     )
                     .rotateY(yawRadians)
-                val task = instance.createRenderTask(bodyMatrix, light = pending.packedLight)
                 val stack = RenderSystem.getModelViewStack()
                 stack.pushMatrix()
                 stack.set(event.modelViewMatrix)
                 RenderSystem.applyModelViewMatrix()
                 try {
                     if (ignoreDepth) GL11.glDisable(GL11.GL_DEPTH_TEST)
-                    renderer.render(colorView, depthView, task, scene)
+                    renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), bodyMatrix, pending.packedLight)
                     drawnFrames++
                 } finally {
-                    runCatching { task.release() }
                     if (ignoreDepth) GL11.glEnable(GL11.GL_DEPTH_TEST)
                     stack.popMatrix()
                     RenderSystem.applyModelViewMatrix()
@@ -528,13 +528,11 @@ object GlbrenderClient {
                 .rotateYXZ(fpYaw, fpPitch, fpRoll)
                 .scale(fpScale)
             val matrix = Matrix4f(RenderSystem.getModelViewMatrix()).invert().mul(armTransform)
-            val task = instance.createRenderTask(matrix, light = event.packedLight)
             if (ignoreDepth) GL11.glDisable(GL11.GL_DEPTH_TEST)
             try {
-                renderer.render(colorView, depthView, task, scene)
+                renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), matrix, event.packedLight)
                 drawnFrames++
             } finally {
-                runCatching { task.release() }
                 if (ignoreDepth) GL11.glEnable(GL11.GL_DEPTH_TEST)
             }
         } catch (error: RuntimeException) {

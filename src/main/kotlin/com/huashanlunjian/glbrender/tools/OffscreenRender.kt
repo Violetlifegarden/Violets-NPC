@@ -30,6 +30,8 @@ import top.fifthlight.blazerod.render.api.animation.AnimationItem
 import top.fifthlight.blazerod.render.api.animation.AnimationItemInstance
 import top.fifthlight.blazerod.render.api.loader.ModelLoader
 import top.fifthlight.blazerod.render.api.render.RendererTypeHolder
+import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
+import top.fifthlight.blazerod.render.api.render.drawScene
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import top.fifthlight.blazerod.render.api.resource.RenderScene
 import top.fifthlight.blazerod.render.runtime.animation.AnimationItemImpl
@@ -171,9 +173,7 @@ private suspend fun render(window: Long, modelPath: Path, outputPath: Path, size
     Gl.frameContext = RenderSystemFrameContext
 
     val renderer = RendererTypeHolder.vertexShaderTransform.create()
-    val task = instance.createRenderTask(Matrix4f(), light = FULL_BRIGHT)
-    renderer.render(colorView, depthView, task, scene)
-    task.release()
+    renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), Matrix4f(), FULL_BRIGHT)
     GL11.glFinish()
 
     val pixels = ByteBuffer.allocateDirect(size * size * 4).order(ByteOrder.nativeOrder())
