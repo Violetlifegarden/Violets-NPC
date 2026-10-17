@@ -1,6 +1,7 @@
 package top.fifthlight.blazerod.render.common.runtime.load
 
-import com.mojang.blaze3d.vertex.VertexFormatElement
+import top.fifthlight.blazerod.render.format.GlbElementType
+import top.fifthlight.blazerod.render.format.GlbVertexFormatElement
 import top.fifthlight.blazerod.model.Accessor
 import top.fifthlight.blazerod.model.elementLength
 import top.fifthlight.blazerod.model.read
@@ -41,37 +42,37 @@ object VertexLoadUtil {
         srcAttribute: Accessor,
         dstBuffer: ByteBuffer,
         dstOffset: Int,
-        targetElement: VertexFormatElement,
+        targetElement: GlbVertexFormatElement,
     ) {
-        require(srcAttribute.type.components == targetElement.count()) { "Copy unnormalized data failed: Source element count (${srcAttribute.type.components}) does not match destination element count (${targetElement.count()})" }
+        require(srcAttribute.type.components == targetElement.count) { "Copy unnormalized data failed: Source element count (${srcAttribute.type.components}) does not match destination element count (${targetElement.count})" }
         if (srcAttribute.bufferView == null) {
             return
         }
         var currentDstOffset = dstOffset
         srcAttribute.read { elementBuffer ->
             repeat(srcAttribute.type.components) { component ->
-                val dstComponentLength = targetElement.type.size()
+                val dstComponentLength = targetElement.type.bytes
                 val absoluteDstOffset = currentDstOffset + component * dstComponentLength
                 when (srcAttribute.componentType) {
                     Accessor.ComponentType.BYTE -> {
                         val value = elementBuffer.get()
                         when (targetElement.type) {
-                            VertexFormatElement.Type.UBYTE, VertexFormatElement.Type.BYTE -> dstBuffer.put(
+                            GlbElementType.UBYTE, GlbElementType.BYTE -> dstBuffer.put(
                                 absoluteDstOffset,
                                 value
                             )
 
-                            VertexFormatElement.Type.USHORT, VertexFormatElement.Type.SHORT -> dstBuffer.putShort(
+                            GlbElementType.USHORT, GlbElementType.SHORT -> dstBuffer.putShort(
                                 absoluteDstOffset,
                                 value.toShort()
                             )
 
-                            VertexFormatElement.Type.UINT, VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                            GlbElementType.UINT, GlbElementType.INT -> dstBuffer.putInt(
                                 absoluteDstOffset,
                                 value.toInt()
                             )
 
-                            VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(
+                            GlbElementType.FLOAT -> dstBuffer.putFloat(
                                 absoluteDstOffset,
                                 elementBuffer.getFloat()
                             )
@@ -81,93 +82,93 @@ object VertexLoadUtil {
                     Accessor.ComponentType.UNSIGNED_BYTE -> {
                         val value = elementBuffer.get().toUByte()
                         when (targetElement.type) {
-                            VertexFormatElement.Type.UBYTE, VertexFormatElement.Type.BYTE -> dstBuffer.put(
+                            GlbElementType.UBYTE, GlbElementType.BYTE -> dstBuffer.put(
                                 absoluteDstOffset,
                                 value.toByte()
                             )
 
-                            VertexFormatElement.Type.USHORT, VertexFormatElement.Type.SHORT -> dstBuffer.putShort(
+                            GlbElementType.USHORT, GlbElementType.SHORT -> dstBuffer.putShort(
                                 absoluteDstOffset,
                                 value.toShort()
                             )
 
-                            VertexFormatElement.Type.UINT, VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                            GlbElementType.UINT, GlbElementType.INT -> dstBuffer.putInt(
                                 absoluteDstOffset,
                                 value.toInt()
                             )
 
-                            VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
+                            GlbElementType.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
                         }
                     }
 
                     Accessor.ComponentType.SHORT -> {
                         val value = elementBuffer.getShort()
                         when (targetElement.type) {
-                            VertexFormatElement.Type.UBYTE, VertexFormatElement.Type.BYTE -> {
+                            GlbElementType.UBYTE, GlbElementType.BYTE -> {
                                 require(value in Byte.MIN_VALUE..Byte.MAX_VALUE) { "Short input cannot be copied to byte output" }
                                 dstBuffer.put(absoluteDstOffset, value.toByte())
                             }
 
-                            VertexFormatElement.Type.USHORT, VertexFormatElement.Type.SHORT -> dstBuffer.putShort(
+                            GlbElementType.USHORT, GlbElementType.SHORT -> dstBuffer.putShort(
                                 absoluteDstOffset,
                                 value
                             )
 
-                            VertexFormatElement.Type.UINT, VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                            GlbElementType.UINT, GlbElementType.INT -> dstBuffer.putInt(
                                 absoluteDstOffset,
                                 value.toInt()
                             )
 
-                            VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
+                            GlbElementType.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
                         }
                     }
 
                     Accessor.ComponentType.UNSIGNED_SHORT -> {
                         val value = elementBuffer.getShort().toUShort()
                         when (targetElement.type) {
-                            VertexFormatElement.Type.UBYTE, VertexFormatElement.Type.BYTE -> {
+                            GlbElementType.UBYTE, GlbElementType.BYTE -> {
                                 require(value in UByte.MIN_VALUE..UByte.MAX_VALUE) { "Short input cannot be copied to byte output" }
                                 dstBuffer.put(absoluteDstOffset, value.toByte())
                             }
 
-                            VertexFormatElement.Type.USHORT, VertexFormatElement.Type.SHORT -> dstBuffer.putShort(
+                            GlbElementType.USHORT, GlbElementType.SHORT -> dstBuffer.putShort(
                                 absoluteDstOffset,
                                 value.toShort()
                             )
 
-                            VertexFormatElement.Type.UINT, VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                            GlbElementType.UINT, GlbElementType.INT -> dstBuffer.putInt(
                                 absoluteDstOffset,
                                 value.toInt()
                             )
 
-                            VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
+                            GlbElementType.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
                         }
                     }
 
                     Accessor.ComponentType.UNSIGNED_INT -> {
                         val value = elementBuffer.getInt().toUInt()
                         when (targetElement.type) {
-                            VertexFormatElement.Type.UBYTE, VertexFormatElement.Type.BYTE -> {
+                            GlbElementType.UBYTE, GlbElementType.BYTE -> {
                                 require(value in UByte.MIN_VALUE..UByte.MAX_VALUE) { "Int input cannot be copied to byte output" }
                                 dstBuffer.put(absoluteDstOffset, value.toByte())
                             }
 
-                            VertexFormatElement.Type.USHORT, VertexFormatElement.Type.SHORT -> {
+                            GlbElementType.USHORT, GlbElementType.SHORT -> {
                                 require(value in UShort.MIN_VALUE..UShort.MAX_VALUE) { "Int input cannot be copied to Short output" }
                                 dstBuffer.putShort(absoluteDstOffset, value.toShort())
                             }
 
-                            VertexFormatElement.Type.UINT, VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                            GlbElementType.UINT, GlbElementType.INT -> dstBuffer.putInt(
                                 absoluteDstOffset,
                                 value.toInt()
                             )
 
-                            VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
+                            GlbElementType.FLOAT -> dstBuffer.putFloat(absoluteDstOffset, value.toFloat())
                         }
                     }
 
                     Accessor.ComponentType.FLOAT -> {
-                        require(targetElement.type == VertexFormatElement.Type.FLOAT) { "Float input can only be copied to float output" }
+                        require(targetElement.type == GlbElementType.FLOAT) { "Float input can only be copied to float output" }
                         dstBuffer.putFloat(absoluteDstOffset, elementBuffer.getFloat())
                     }
                 }
@@ -181,7 +182,7 @@ object VertexLoadUtil {
         srcAttribute: Accessor,
         dstBuffer: ByteBuffer,
         dstOffset: Int,
-        targetElementType: VertexFormatElement.Type,
+        targetElementType: GlbElementType,
         componentsToWrite: Int,
         fillAlphaValue: Float? = null,
     ) {
@@ -196,42 +197,42 @@ object VertexLoadUtil {
 
         var currentDstOffset = dstOffset
         var dstComponentIndex = 0
-        val byteSizePerComponent = targetElementType.size()
+        val byteSizePerComponent = targetElementType.bytes
 
         srcAttribute.readNormalized { value ->
             val absoluteDstOffset = currentDstOffset + dstComponentIndex * byteSizePerComponent
             when (targetElementType) {
-                VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(
+                GlbElementType.FLOAT -> dstBuffer.putFloat(
                     absoluteDstOffset,
                     value
                 )
 
-                VertexFormatElement.Type.UBYTE -> dstBuffer.put(
+                GlbElementType.UBYTE -> dstBuffer.put(
                     absoluteDstOffset,
                     value.toNormalizedUByte()
                 )
 
-                VertexFormatElement.Type.BYTE -> dstBuffer.put(
+                GlbElementType.BYTE -> dstBuffer.put(
                     absoluteDstOffset,
                     value.toNormalizedSByte()
                 )
 
-                VertexFormatElement.Type.USHORT -> dstBuffer.putShort(
+                GlbElementType.USHORT -> dstBuffer.putShort(
                     absoluteDstOffset,
                     value.toNormalizedUShort()
                 )
 
-                VertexFormatElement.Type.SHORT -> dstBuffer.putShort(
+                GlbElementType.SHORT -> dstBuffer.putShort(
                     absoluteDstOffset,
                     value.toNormalizedSShort()
                 )
 
-                VertexFormatElement.Type.UINT -> dstBuffer.putInt(
+                GlbElementType.UINT -> dstBuffer.putInt(
                     absoluteDstOffset,
                     value.toNormalizedUInt()
                 )
 
-                VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                GlbElementType.INT -> dstBuffer.putInt(
                     absoluteDstOffset,
                     value.toNormalizedUInt()
                 )
@@ -241,37 +242,37 @@ object VertexLoadUtil {
             if (dstComponentIndex == 3 && fillAlphaValue != null) {
                 val absoluteDstOffsetAlpha = currentDstOffset + 3 * byteSizePerComponent
                 when (targetElementType) {
-                    VertexFormatElement.Type.FLOAT -> dstBuffer.putFloat(
+                    GlbElementType.FLOAT -> dstBuffer.putFloat(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue
                     )
 
-                    VertexFormatElement.Type.UBYTE -> dstBuffer.put(
+                    GlbElementType.UBYTE -> dstBuffer.put(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue.toNormalizedUByte()
                     )
 
-                    VertexFormatElement.Type.BYTE -> dstBuffer.put(
+                    GlbElementType.BYTE -> dstBuffer.put(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue.toNormalizedSByte()
                     )
 
-                    VertexFormatElement.Type.USHORT -> dstBuffer.putShort(
+                    GlbElementType.USHORT -> dstBuffer.putShort(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue.toNormalizedUShort()
                     )
 
-                    VertexFormatElement.Type.SHORT -> dstBuffer.putShort(
+                    GlbElementType.SHORT -> dstBuffer.putShort(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue.toNormalizedSShort()
                     )
 
-                    VertexFormatElement.Type.UINT -> dstBuffer.putInt(
+                    GlbElementType.UINT -> dstBuffer.putInt(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue.toNormalizedUInt()
                     )
 
-                    VertexFormatElement.Type.INT -> dstBuffer.putInt(
+                    GlbElementType.INT -> dstBuffer.putInt(
                         absoluteDstOffsetAlpha,
                         fillAlphaValue.toNormalizedUInt()
                     )
@@ -289,7 +290,7 @@ object VertexLoadUtil {
     fun copyAttributeData(
         vertices: Int,
         stride: Int,
-        element: VertexFormatElement,
+        element: GlbVertexFormatElement,
         normalized: Boolean,
         srcAttribute: Accessor,
         dstBuffer: ByteBuffer,
@@ -298,7 +299,7 @@ object VertexLoadUtil {
         val isFloat = srcAttribute.componentType == Accessor.ComponentType.FLOAT
         require(normalized == srcAttribute.normalized || isFloat) { "Source attribute's normalized ${srcAttribute.normalized} don't match target element $normalized" }
         require(srcAttribute.count == vertices) { "Source attribute's vertex count ${srcAttribute.count} don't match target vertex count $vertices" }
-        val dstLength = element.byteSize()
+        val dstLength = element.byteSize
         if (srcAttribute.bufferView == null) {
             return
         }
@@ -306,7 +307,7 @@ object VertexLoadUtil {
         val canCopyRaw = srcAttribute.componentType == Accessor.ComponentType.FLOAT &&
                 !srcAttribute.normalized &&
                 srcAttribute.elementLength == dstLength &&
-                element.type == VertexFormatElement.Type.FLOAT
+                element.type == GlbElementType.FLOAT
 
         if (canCopyRaw) {
             copyRawData(
@@ -319,7 +320,7 @@ object VertexLoadUtil {
             )
         } else if (normalized) {
             val fillAlpha =
-                if (element == VertexFormatElement.COLOR && srcAttribute.type.components == 3 && element.count() == 4) {
+                if (element.name == "Color" && srcAttribute.type.components == 3 && element.count == 4) {
                     1f
                 } else {
                     null
@@ -331,7 +332,7 @@ object VertexLoadUtil {
                 dstBuffer = dstBuffer,
                 dstOffset = dstOffset,
                 targetElementType = element.type,
-                componentsToWrite = element.count(),
+                componentsToWrite = element.count,
                 fillAlphaValue = fillAlpha,
             )
         } else {

@@ -1,6 +1,6 @@
 package top.fifthlight.blazerod.gl
 
-import com.mojang.blaze3d.vertex.VertexFormat
+import top.fifthlight.blazerod.render.format.GlbVertexFormat
 import net.minecraft.resources.ResourceLocation
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL31
@@ -15,7 +15,7 @@ class RenderPipeline private constructor(
     val location: ResourceLocation?,
     val vertexShader: ResourceLocation,
     val fragmentShader: ResourceLocation,
-    val vertexFormat: VertexFormat?,
+    val vertexFormat: GlbVertexFormat?,
     val isCullEnabled: Boolean,
     val blendFunction: BlendFunction?,
     val uniforms: Map<String, Uniform>,
@@ -57,7 +57,7 @@ class RenderPipeline private constructor(
         private var location: ResourceLocation? = null
         private var vertexShader: ResourceLocation? = null
         private var fragmentShader: ResourceLocation? = null
-        private var vertexFormat: VertexFormat? = null
+        private var vertexFormat: GlbVertexFormat? = null
         private var isCullEnabled = true
         private var blendFunction: BlendFunction? = null
         private val uniforms = LinkedHashMap<String, Uniform>()
@@ -72,7 +72,7 @@ class RenderPipeline private constructor(
 
         fun withFragmentShader(location: ResourceLocation) = also { this.fragmentShader = location }
 
-        fun withVertexFormat(format: VertexFormat?) = also { vertexFormat = format }
+        fun withVertexFormat(format: GlbVertexFormat?) = also { vertexFormat = format }
 
         fun withCull(enable: Boolean) = also { isCullEnabled = enable }
 

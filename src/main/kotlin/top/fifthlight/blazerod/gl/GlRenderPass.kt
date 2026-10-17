@@ -1,7 +1,10 @@
 package top.fifthlight.blazerod.gl
 
-import com.mojang.blaze3d.vertex.VertexFormat
-import com.mojang.blaze3d.vertex.VertexFormatElement
+import top.fifthlight.blazerod.render.format.GlbElementType
+import top.fifthlight.blazerod.render.format.GlbElementUsage
+import top.fifthlight.blazerod.render.format.GlbIndexType
+import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
+import top.fifthlight.blazerod.render.format.GlbVertexFormat
 import org.lwjgl.opengl.GL11
 import org.lwjgl.opengl.GL13
 import org.lwjgl.opengl.GL14
@@ -27,10 +30,10 @@ class RenderPass private constructor(
 ) : AutoCloseable {
     private var pipeline: RenderPipeline? = null
     private var program: GlProgram? = null
-    private var vertexFormat: VertexFormat? = null
+    private var vertexFormat: GlbVertexFormat? = null
     private var vertexBuffer: GpuBufferSlice? = null
     private var indexBuffer: GpuBufferSlice? = null
-    private var indexType: VertexFormat.IndexType? = null
+    private var indexType: GlbIndexType? = null
     private var drawMode = GL11.GL_TRIANGLES
     private val texelUnits = HashMap<String, Int>()
     private var nextTexelUnit = 0
@@ -60,11 +63,11 @@ class RenderPass private constructor(
         Gl.checkError("set pipeline ${pipeline.label}")
     }
 
-    fun setVertexFormat(format: VertexFormat) {
+    fun setVertexFormat(format: GlbVertexFormat) {
         vertexFormat = format
     }
 
-    fun setVertexFormatMode(mode: VertexFormat.Mode) {
+    fun setVertexFormatMode(mode: GlbPrimitiveMode) {
         drawMode = mode.asGLMode
     }
 
@@ -80,11 +83,11 @@ class RenderPass private constructor(
     fun setVertexBuffer(index: Int, slice: GpuBufferSlice) {
         vertexBuffer = slice
     }
-    fun setIndexBuffer(buffer: GpuBuffer, type: VertexFormat.IndexType) {
+    fun setIndexBuffer(buffer: GpuBuffer, type: GlbIndexType) {
         setIndexBuffer(buffer.slice(), type)
     }
 
-    fun setIndexBuffer(slice: GpuBufferSlice, type: VertexFormat.IndexType) {
+    fun setIndexBuffer(slice: GpuBufferSlice, type: GlbIndexType) {
         indexBuffer = slice
         indexType = type
     }
@@ -197,8 +200,8 @@ class RenderPass private constructor(
         val stride = format.vertexSize
         for (index in 0 until format.elements.size) {
             val element = format.elements[index]
-            val offset = buffer.offset() + format.getOffset(element)
-            val location = currentProgram.attributeLocation(format.getElementName(element))
+            val offset = buffer.offset() + element.offset
+            val location = currentProgram.attributeLocation(element.name)
             if (location < 0) {
                 // The shader does not use this attribute, which is normal for a model without colors.
                 continue
@@ -208,24 +211,24 @@ class RenderPass private constructor(
                 // Joint indices are unsigned shorts read by an `ivec4` input, so an integer-typed
                 // attribute has to go through glVertexAttribIPointer; feeding a float pointer to an
                 // integer input is an invalid operation at draw time.
-                VertexFormatElement.Usage.POSITION, VertexFormatElement.Usage.GENERIC ->
-                    if (element.type == VertexFormatElement.Type.FLOAT) {
+                GlbElementUsage.POSITION, GlbElementUsage.GENERIC ->
+                    if (element.type == GlbElementType.FLOAT) {
                         GL20.glVertexAttribPointer(
-                            location, element.count, element.type.glType(), false, stride, offset.toLong()
+                            location, element.count, element.type.glType, false, stride, offset.toLong()
                         )
                     } else {
                         GL30.glVertexAttribIPointer(
-                            location, element.count, element.type.glType(), stride, offset.toLong()
+                            location, element.count, element.type.glType, stride, offset.toLong()
                         )
                     }
 
-                VertexFormatElement.Usage.NORMAL, VertexFormatElement.Usage.COLOR ->
-                    GL20.glVertexAttribPointer(location, element.count, element.type.glType(), true, stride, offset.toLong())
+                GlbElementUsage.NORMAL, GlbElementUsage.COLOR ->
+                    GL20.glVertexAttribPointer(location, element.count, element.type.glType, true, stride, offset.toLong())
 
-                VertexFormatElement.Usage.UV -> if (element.type == VertexFormatElement.Type.FLOAT) {
-                    GL20.glVertexAttribPointer(location, element.count, element.type.glType(), false, stride, offset.toLong())
+                GlbElementUsage.UV -> if (element.type == GlbElementType.FLOAT) {
+                    GL20.glVertexAttribPointer(location, element.count, element.type.glType, false, stride, offset.toLong())
                 } else {
-                    GL30.glVertexAttribIPointer(location, element.count, element.type.glType(), stride, offset.toLong())
+                    GL30.glVertexAttribIPointer(location, element.count, element.type.glType, stride, offset.toLong())
                 }
             }
         }

@@ -1,11 +1,11 @@
 package top.fifthlight.blazerod.render.render
 
-import com.mojang.blaze3d.vertex.VertexFormat
+import top.fifthlight.blazerod.render.format.GlbIndexType
 import top.fifthlight.blazerod.gl.RenderPass
 import top.fifthlight.blazerod.render.common.util.refcount.AbstractRefCount
 
 class GpuIndexBuffer(
-    val type: VertexFormat.IndexType,
+    val type: GlbIndexType,
     val length: Int,
     val buffer: RefCountedGpuBuffer,
 ) : AbstractRefCount() {

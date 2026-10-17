@@ -1,7 +1,11 @@
 package com.huashanlunjian.glbrender.tools
 
-import com.mojang.blaze3d.vertex.VertexFormat
-import com.mojang.blaze3d.vertex.VertexFormatElement
+import top.fifthlight.blazerod.render.format.GlbElementType
+import top.fifthlight.blazerod.render.format.GlbElementUsage
+import top.fifthlight.blazerod.render.format.GlbIndexType
+import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
+import top.fifthlight.blazerod.render.format.GlbVertexFormat
+import top.fifthlight.blazerod.render.format.GlbVertexFormatElement
 import net.minecraft.resources.ResourceLocation
 import org.lwjgl.glfw.Callbacks
 import org.lwjgl.glfw.GLFW
@@ -228,11 +232,14 @@ private fun runRenderPassChecks(device: GpuDevice) {
 
     // The plain unlit specialisation: SSBO matrices, no skinning, no morphing. The format is built
     // rather than taken from DefaultVertexFormat so that it matches unlit.vsh attribute for attribute.
-    val meshFormat = VertexFormat.builder()
-        .add("Position", VertexFormatElement.POSITION)
-        .add("Color", VertexFormatElement.COLOR)
-        .add("UV0", VertexFormatElement.UV0)
-        .build()
+    val meshFormat = GlbVertexFormat(
+        elements = listOf(
+            GlbVertexFormatElement("Position", GlbElementUsage.POSITION, GlbElementType.FLOAT, 3, 0),
+            GlbVertexFormatElement("Color", GlbElementUsage.COLOR, GlbElementType.UBYTE, 4, 12),
+            GlbVertexFormatElement("UV0", GlbElementUsage.UV, GlbElementType.FLOAT, 2, 16),
+        ),
+        vertexSize = 24,
+    )
     val pipeline = RenderPipeline.builder()
         .withLocation(ResourceLocation.fromNamespaceAndPath("blazerod", "selftest_unlit"))
         .withVertexShader(ResourceLocation.fromNamespaceAndPath("blazerod", "core/unlit"))
@@ -314,9 +321,9 @@ private fun runRenderPassChecks(device: GpuDevice) {
     pass.setStorageBuffer("LocalMatricesData", matrices.slice())
     pass.bindSampler("SamplerBaseColor", device.createTextureView(baseColor))
     pass.bindSampler("SamplerLightMap", device.createTextureView(lightMap))
-    pass.setVertexFormatMode(VertexFormat.Mode.TRIANGLES)
+    pass.setVertexFormatMode(GlbPrimitiveMode.TRIANGLES)
     pass.setVertexBuffer(0, vertex)
-    pass.setIndexBuffer(index.slice(), VertexFormat.IndexType.SHORT)
+    pass.setIndexBuffer(index.slice(), GlbIndexType.SHORT)
     pass.drawIndexed(0, 0, 3, 1)
     pass.close()
     pipeline.close()

@@ -1,8 +1,9 @@
 package top.fifthlight.blazerod.render.common.runtime.load
 
 import top.fifthlight.blazerod.gl.TextureFormat
-import com.mojang.blaze3d.vertex.VertexFormat
-import com.mojang.blaze3d.vertex.VertexFormatElement
+import top.fifthlight.blazerod.render.format.GlbIndexType
+import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
+import top.fifthlight.blazerod.render.format.GlbVertexFormats
 import kotlinx.coroutines.*
 import top.fifthlight.blazerod.render.common.resource.MorphTargetGroup
 import top.fifthlight.blazerod.render.extension.NativeImageExt
@@ -10,8 +11,6 @@ import top.fifthlight.blazerod.render.common.resource.RenderSkin
 import top.fifthlight.blazerod.model.*
 import top.fifthlight.blazerod.render.api.resource.RenderExpression
 import top.fifthlight.blazerod.render.api.resource.RenderExpressionGroup
-import top.fifthlight.blazerod.render.render.BlazerodVertexFormatElements
-import top.fifthlight.blazerod.render.render.BlazerodVertexFormats
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -125,7 +124,7 @@ class ModelPreprocessor private constructor(
     }
 
     private data class IndexBufferLoadInfo(
-        val type: VertexFormat.IndexType,
+        val type: GlbIndexType,
         val bufferIndex: Int,
     )
 
@@ -140,8 +139,8 @@ class ModelPreprocessor private constructor(
                     CompletableDeferred(
                         IndexBufferLoadData(
                             type = when (accessor.componentType) {
-                                Accessor.ComponentType.UNSIGNED_SHORT -> VertexFormat.IndexType.SHORT
-                                Accessor.ComponentType.UNSIGNED_INT -> VertexFormat.IndexType.INT
+                                Accessor.ComponentType.UNSIGNED_SHORT -> GlbIndexType.SHORT
+                                Accessor.ComponentType.UNSIGNED_INT -> GlbIndexType.INT
                                 else -> error("Bad index type: ${accessor.componentType}")
                             },
                             length = accessor.count,
@@ -151,8 +150,8 @@ class ModelPreprocessor private constructor(
                 )
                 IndexBufferLoadInfo(
                     type = when (accessor.componentType) {
-                        Accessor.ComponentType.UNSIGNED_SHORT -> VertexFormat.IndexType.SHORT
-                        Accessor.ComponentType.UNSIGNED_INT -> VertexFormat.IndexType.INT
+                        Accessor.ComponentType.UNSIGNED_SHORT -> GlbIndexType.SHORT
+                        Accessor.ComponentType.UNSIGNED_INT -> GlbIndexType.INT
                         else -> throw AssertionError()
                     },
                     bufferIndex = index,
@@ -170,7 +169,7 @@ class ModelPreprocessor private constructor(
                             flip()
                         }
                     IndexBufferLoadData(
-                        type = VertexFormat.IndexType.SHORT,
+                        type = GlbIndexType.SHORT,
                         length = accessor.count,
                         buffer = byteBuffer,
                     )
@@ -178,7 +177,7 @@ class ModelPreprocessor private constructor(
                 val index = indexBuffers.size
                 indexBuffers.add(loadData)
                 IndexBufferLoadInfo(
-                    type = VertexFormat.IndexType.SHORT,
+                    type = GlbIndexType.SHORT,
                     bufferIndex = index,
                 )
             }
@@ -193,17 +192,17 @@ class ModelPreprocessor private constructor(
         skinned: Boolean,
         attributes: Primitive.Attributes.Primitive,
     ): Int {
-        val vertexFormat = material?.getVertexFormat(skinned) ?: BlazerodVertexFormats.POSITION_COLOR_TEXTURE
+        val vertexFormat = material?.getVertexFormat(skinned) ?: GlbVertexFormats.POSITION_COLOR_TEXTURE
         val vertexBuffer = coroutineScope.async(dispatcher) {
             val vertices = attributes.position.count
             val stride = vertexFormat.vertexSize
             val buffer = ByteBuffer.allocateDirect(stride * vertices).order(ByteOrder.nativeOrder())
 
             for (element in vertexFormat.elements) {
-                val dstOffset = vertexFormat.getOffset(element)
+                val dstOffset = element.offset
 
-                when (element) {
-                    VertexFormatElement.POSITION -> {
+                when (element.name) {
+                    "Position" -> {
                         val srcAttribute = attributes.position
                         VertexLoadUtil.copyAttributeData(
                             vertices = vertices,
@@ -216,7 +215,7 @@ class ModelPreprocessor private constructor(
                         )
                     }
 
-                    VertexFormatElement.UV0 -> {
+                    "UV0" -> {
                         val srcAttribute = attributes.texcoords.firstOrNull() ?: continue
                         VertexLoadUtil.copyAttributeData(
                             vertices = vertices,
@@ -229,7 +228,7 @@ class ModelPreprocessor private constructor(
                         )
                     }
 
-                    VertexFormatElement.NORMAL -> {
+                    "Normal" -> {
                         val srcAttribute = attributes.normal ?: continue
                         VertexLoadUtil.copyAttributeData(
                             vertices = vertices,
@@ -242,7 +241,7 @@ class ModelPreprocessor private constructor(
                         )
                     }
 
-                    VertexFormatElement.COLOR -> {
+                    "Color" -> {
                         val srcAttribute = attributes.colors.firstOrNull()
                         if (srcAttribute != null) {
                             VertexLoadUtil.copyAttributeData(
@@ -261,7 +260,7 @@ class ModelPreprocessor private constructor(
                         }
                     }
 
-                    BlazerodVertexFormatElements.JOINT -> {
+                    "Joint" -> {
                         val srcAttribute = attributes.joints.firstOrNull() ?: continue
                         VertexLoadUtil.copyAttributeData(
                             vertices = vertices,
@@ -274,7 +273,7 @@ class ModelPreprocessor private constructor(
                         )
                     }
 
-                    BlazerodVertexFormatElements.WEIGHT -> {
+                    "Weight" -> {
                         val srcAttribute = attributes.weights.firstOrNull() ?: continue
                         VertexLoadUtil.copyAttributeData(
                             vertices = vertices,
@@ -425,12 +424,12 @@ class ModelPreprocessor private constructor(
     ): PrimitiveLoadInfo? {
         val vertexFormatMode = when (primitive.mode) {
             Primitive.Mode.POINTS -> return null
-            Primitive.Mode.LINE_STRIP -> VertexFormat.Mode.LINE_STRIP
+            Primitive.Mode.LINE_STRIP -> GlbPrimitiveMode.LINE_STRIP
             Primitive.Mode.LINE_LOOP -> return null
-            Primitive.Mode.LINES -> VertexFormat.Mode.LINES
-            Primitive.Mode.TRIANGLES -> VertexFormat.Mode.TRIANGLES
-            Primitive.Mode.TRIANGLE_STRIP -> VertexFormat.Mode.TRIANGLE_STRIP
-            Primitive.Mode.TRIANGLE_FAN -> VertexFormat.Mode.TRIANGLE_FAN
+            Primitive.Mode.LINES -> GlbPrimitiveMode.LINES
+            Primitive.Mode.TRIANGLES -> GlbPrimitiveMode.TRIANGLES
+            Primitive.Mode.TRIANGLE_STRIP -> GlbPrimitiveMode.TRIANGLE_STRIP
+            Primitive.Mode.TRIANGLE_FAN -> GlbPrimitiveMode.TRIANGLE_FAN
         }
         val skinned =
             skinIndex != null && primitive.attributes.joints.isNotEmpty() && primitive.attributes.weights.isNotEmpty()

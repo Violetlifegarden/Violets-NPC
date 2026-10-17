@@ -1,22 +1,22 @@
 package top.fifthlight.blazerod.render.util.blaze3d
 
-import com.mojang.blaze3d.vertex.VertexFormat
-import com.mojang.blaze3d.vertex.VertexFormatElement
+import top.fifthlight.blazerod.render.format.GlbElementType
+import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
 import top.fifthlight.blazerod.gl.AddressMode
 import top.fifthlight.blazerod.gl.FilterMode
 import top.fifthlight.blazerod.model.Accessor.ComponentType
 import top.fifthlight.blazerod.model.Primitive
 import top.fifthlight.blazerod.model.Texture
 
-val Primitive.Mode.blaze3d
+val Primitive.Mode.blaze3d: GlbPrimitiveMode?
     get() = when (this) {
         Primitive.Mode.POINTS -> null
-        Primitive.Mode.LINE_STRIP -> VertexFormat.Mode.LINE_STRIP
+        Primitive.Mode.LINE_STRIP -> GlbPrimitiveMode.LINE_STRIP
         Primitive.Mode.LINE_LOOP -> null
-        Primitive.Mode.LINES -> VertexFormat.Mode.LINES
-        Primitive.Mode.TRIANGLES -> VertexFormat.Mode.TRIANGLES
-        Primitive.Mode.TRIANGLE_STRIP -> VertexFormat.Mode.TRIANGLE_STRIP
-        Primitive.Mode.TRIANGLE_FAN -> VertexFormat.Mode.TRIANGLE_FAN
+        Primitive.Mode.LINES -> GlbPrimitiveMode.LINES
+        Primitive.Mode.TRIANGLES -> GlbPrimitiveMode.TRIANGLES
+        Primitive.Mode.TRIANGLE_STRIP -> GlbPrimitiveMode.TRIANGLE_STRIP
+        Primitive.Mode.TRIANGLE_FAN -> GlbPrimitiveMode.TRIANGLE_FAN
     }
 
 val Primitive.Attributes.Key.usageName
@@ -30,14 +30,14 @@ val Primitive.Attributes.Key.usageName
         Primitive.Attributes.Key.WEIGHTS -> "Weight"
     }
 
-val ComponentType.blaze3d: VertexFormatElement.Type
+val ComponentType.blaze3d: GlbElementType
     get() = when (this) {
-        ComponentType.BYTE -> VertexFormatElement.Type.BYTE
-        ComponentType.UNSIGNED_BYTE -> VertexFormatElement.Type.UBYTE
-        ComponentType.SHORT -> VertexFormatElement.Type.SHORT
-        ComponentType.UNSIGNED_SHORT -> VertexFormatElement.Type.USHORT
-        ComponentType.UNSIGNED_INT -> VertexFormatElement.Type.UINT
-        ComponentType.FLOAT -> VertexFormatElement.Type.FLOAT
+        ComponentType.BYTE -> GlbElementType.BYTE
+        ComponentType.UNSIGNED_BYTE -> GlbElementType.UBYTE
+        ComponentType.SHORT -> GlbElementType.SHORT
+        ComponentType.UNSIGNED_SHORT -> GlbElementType.USHORT
+        ComponentType.UNSIGNED_INT -> GlbElementType.UINT
+        ComponentType.FLOAT -> GlbElementType.FLOAT
     }
 
 val Texture.Sampler.WrapMode.blaze3d: AddressMode

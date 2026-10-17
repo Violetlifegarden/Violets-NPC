@@ -1,7 +1,7 @@
 package top.fifthlight.blazerod.render.runtime.resource
 
 import top.fifthlight.blazerod.gl.GpuBuffer
-import com.mojang.blaze3d.vertex.VertexFormat
+import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
 import top.fifthlight.blazerod.render.common.resource.MorphTargetGroup
 import top.fifthlight.blazerod.render.common.util.refcount.AbstractRefCount
 import top.fifthlight.blazerod.render.render.GpuIndexBuffer
@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 
 class RenderPrimitive(
     val vertices: Int,
-    val vertexFormatMode: VertexFormat.Mode,
+    val vertexFormatMode: GlbPrimitiveMode,
     val gpuVertexBuffer: RefCountedGpuBuffer?,
     val cpuVertexBuffer: ByteBuffer?,
     val indexBuffer: GpuIndexBuffer?,

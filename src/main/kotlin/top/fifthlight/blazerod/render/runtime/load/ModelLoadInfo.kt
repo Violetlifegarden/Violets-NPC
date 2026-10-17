@@ -1,14 +1,16 @@
 package top.fifthlight.blazerod.render.common.runtime.load
 
 import com.mojang.blaze3d.platform.NativeImage
-import com.mojang.blaze3d.vertex.VertexFormat
+import top.fifthlight.blazerod.render.format.GlbIndexType
+import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
+import top.fifthlight.blazerod.render.format.GlbVertexFormat
 import kotlinx.coroutines.Deferred
 import top.fifthlight.blazerod.render.common.resource.MorphTargetGroup
 import top.fifthlight.blazerod.render.common.resource.RenderSkin
 import top.fifthlight.blazerod.render.api.resource.RenderExpression
 import top.fifthlight.blazerod.render.api.resource.RenderExpressionGroup
 import top.fifthlight.blazerod.model.*
-import top.fifthlight.blazerod.render.render.BlazerodVertexFormats
+import top.fifthlight.blazerod.render.format.GlbVertexFormats
 import top.fifthlight.blazerod.render.render.GpuIndexBuffer
 import top.fifthlight.blazerod.render.render.RefCountedGpuBuffer
 import top.fifthlight.blazerod.render.runtime.resource.*
@@ -22,7 +24,7 @@ data class TextureLoadData(
 ) : AutoCloseable by nativeImage
 
 data class IndexBufferLoadData(
-    val type: VertexFormat.IndexType,
+    val type: GlbIndexType,
     val length: Int,
     val buffer: ByteBuffer,
 )
@@ -37,10 +39,10 @@ sealed class MaterialLoadInfo {
     abstract val skinned: Boolean
     abstract val morphed: Boolean
 
-    open fun getVertexFormat(skinned: Boolean): VertexFormat = if (skinned) {
-        BlazerodVertexFormats.POSITION_COLOR_TEXTURE_JOINT_WEIGHT
+    open fun getVertexFormat(skinned: Boolean): GlbVertexFormat = if (skinned) {
+        GlbVertexFormats.POSITION_COLOR_TEXTURE_JOINT_WEIGHT
     } else {
-        BlazerodVertexFormats.POSITION_COLOR_TEXTURE
+        GlbVertexFormats.POSITION_COLOR_TEXTURE
     }
 
     data class TextureInfo(
@@ -87,10 +89,10 @@ sealed class MaterialLoadInfo {
         override val skinned: Boolean,
         override val morphed: Boolean,
     ) : MaterialLoadInfo() {
-        override fun getVertexFormat(skinned: Boolean): VertexFormat = if (skinned) {
-            BlazerodVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
+        override fun getVertexFormat(skinned: Boolean): GlbVertexFormat = if (skinned) {
+            GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
         } else {
-            BlazerodVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
+            GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
         }
     }
 }
@@ -110,7 +112,7 @@ data class MorphTargetsLoadData<Info : Any>(
 
 data class PrimitiveLoadInfo(
     val vertices: Int,
-    val vertexFormatMode: VertexFormat.Mode,
+    val vertexFormatMode: GlbPrimitiveMode,
     val materialInfo: MaterialLoadInfo?,
     val indexBufferIndex: Int?,
     val vertexBufferIndex: Int,

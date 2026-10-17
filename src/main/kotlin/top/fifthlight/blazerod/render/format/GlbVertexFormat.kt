@@ -3,7 +3,7 @@ package top.fifthlight.blazerod.render.format
 import org.lwjgl.opengl.GL11
 
 /**
- * Core-owned vertex-format description. Mirrors the layouts `BlazerodVertexFormats` built on
+ * Core-owned vertex-format description. Replaces the layouts that used to be built on
  * `com.mojang.blaze3d.vertex.VertexFormat` so `glb-core` can describe attributes without importing
  * Minecraft. Element offsets/`vertexSize` are the exact running totals of the original mojang
  * builders (including their `.padding()` calls), so GL attribute setup produces identical pointers.

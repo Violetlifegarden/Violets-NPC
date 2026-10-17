@@ -1,12 +1,12 @@
 package top.fifthlight.blazerod.render.runtime.resource
 
-import com.mojang.blaze3d.vertex.VertexFormat
+import top.fifthlight.blazerod.render.format.GlbVertexFormat
 import top.fifthlight.blazerod.render.common.util.refcount.AbstractRefCount
 import top.fifthlight.blazerod.model.Material.AlphaMode
 import top.fifthlight.blazerod.model.Material.AlphaMode.OPAQUE
 import top.fifthlight.blazerod.model.RgbColor
 import top.fifthlight.blazerod.model.RgbaColor
-import top.fifthlight.blazerod.render.render.BlazerodVertexFormats
+import top.fifthlight.blazerod.render.format.GlbVertexFormats
 
 sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount() {
     companion object {
@@ -34,7 +34,7 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
         val typeId = "material_$name"
     }
 
-    abstract val vertexFormat: VertexFormat
+    abstract val vertexFormat: GlbVertexFormat
 
     override val typeId: String
         get() = descriptor.typeId
@@ -69,7 +69,7 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
         override val descriptor
             get() = Descriptor
 
-        override val vertexFormat: VertexFormat
+        override val vertexFormat: GlbVertexFormat
             get() = TODO("Not yet implemented")
 
         override fun onClosed() {
@@ -103,11 +103,11 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
         override val descriptor
             get() = Descriptor
 
-        override val vertexFormat: VertexFormat
+        override val vertexFormat: GlbVertexFormat
             get() = if (skinned) {
-                BlazerodVertexFormats.POSITION_COLOR_TEXTURE_JOINT_WEIGHT
+                GlbVertexFormats.POSITION_COLOR_TEXTURE_JOINT_WEIGHT
             } else {
-                BlazerodVertexFormats.POSITION_COLOR_TEXTURE
+                GlbVertexFormats.POSITION_COLOR_TEXTURE
             }
 
         override fun onClosed() {
@@ -138,11 +138,11 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
         override val descriptor
             get() = Descriptor
 
-        override val vertexFormat: VertexFormat
+        override val vertexFormat: GlbVertexFormat
             get() = if (skinned) {
-                BlazerodVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
+                GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
             } else {
-                BlazerodVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
+                GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
             }
 
         override fun onClosed() {
