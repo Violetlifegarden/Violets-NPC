@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.client.npc
 
+import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.mojang.logging.LogUtils
 import net.minecraft.client.Minecraft
@@ -15,25 +16,40 @@ import java.util.UUID
 
 /**
  * Renderer-side glue for the NPC draw: it owns the per-entity [ModelInstance] and the camera-relative body matrix,
- * and pulls the model (descriptor + loaded scene + shared renderer) from [GlbModelRegistry]. Draw itself goes
- * through the glb-core public [drawScene] API, exactly like the demoted player shim — no NPC-specific render path.
+ * and pulls the model (descriptor from the common [GlbModels], loaded scene + shared renderer from
+ * [GlbModelRegistry]). Draw itself goes through the glb-core public [drawScene] API, exactly like the demoted player
+ * shim — no NPC-specific render path.
  *
- * Step 3a: still selects the single registered default model; 3b will key the instance off a synced per-entity
- * modelId and release instances when an entity is removed.
+ * The instance is rebuilt when an entity's modelId changes (right-click cycle), and released once the entity leaves
+ * the client level via [pruneRemoved], so the per-entity map does not leak.
  */
 object GlbNpcModels {
     private val LOGGER = LogUtils.getLogger()
 
-    private val instances = HashMap<UUID, ModelInstance>()
+    /** Holds the entity alongside its instance so [pruneRemoved] can test [net.minecraft.world.entity.Entity.isRemoved]
+     *  without a client-side UUID->entity lookup (ClientLevel only indexes by network id). */
+    private class Entry(val entity: GlbNpc, var instance: ModelInstance)
+
+    private val instances = HashMap<UUID, Entry>()
 
     fun draw(entity: GlbNpc, yaw: Float, partialTick: Float, packedLight: Int) {
-        val modelId = GlbModelRegistry.defaultId ?: return
-        val descriptor = GlbModelRegistry.descriptor(modelId) ?: return
+        val modelId = entity.modelId.ifEmpty { GlbModels.defaultId } ?: return
+        val descriptor = GlbModels.descriptor(modelId) ?: return
         val scene = GlbModelRegistry.sceneFor(modelId) ?: return
         val renderer = GlbModelRegistry.renderer() ?: return
-        val instance = instances.getOrPut(entity.uuid) {
+
+        // Reuse the cached instance only while it still belongs to the current scene; a modelId switch hands us a
+        // different scene, so drop the old reference (its refcount) and build a fresh instance for the new one.
+        val cached = instances[entity.uuid]
+        val instance = if (cached != null && cached.instance.scene === scene) {
+            cached.instance
+        } else {
+            cached?.instance?.decreaseReferenceCount()
             ModelInstance.Factory.of(scene).also { it.increaseReferenceCount() }
+                .also { instances[entity.uuid] = Entry(entity, it) }
         }
+
+
         try {
             instance.updateRenderData(partialTick)
             val minecraft = Minecraft.getInstance()
@@ -61,6 +77,28 @@ object GlbNpcModels {
             renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), bodyMatrix, packedLight)
         } catch (error: RuntimeException) {
             LOGGER.error("glbrender: npc draw failed", error)
+        }
+    }
+
+    /**
+     * Releases the [ModelInstance] of every NPC that has been removed (despawned, unloaded, or the world closed).
+     * Called once per frame from the AFTER_SKY hook; without it the per-entity map grows for the lifetime of the
+     * client and leaks a refcounted instance per removed entity.
+     */
+    fun pruneRemoved() {
+        if (instances.isEmpty()) return
+        if (Minecraft.getInstance().level == null) {
+            instances.values.forEach { it.instance.decreaseReferenceCount() }
+            instances.clear()
+            return
+        }
+        val iterator = instances.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next().value
+            if (entry.entity.isRemoved) {
+                entry.instance.decreaseReferenceCount()
+                iterator.remove()
+            }
         }
     }
 }

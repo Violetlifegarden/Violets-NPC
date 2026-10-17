@@ -1,5 +1,7 @@
 package com.huashanlunjian.glbrender.client.npc
 
+import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
+import com.huashanlunjian.glbrender.npc.GlbModels
 import com.mojang.logging.LogUtils
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -23,34 +25,18 @@ import kotlin.io.path.extension
 import kotlin.io.path.inputStream
 
 /**
- * Client-side store of GLB NPC models: a table of [GlbModelDescriptor]s keyed by id, the lazily/async-loaded
- * [RenderScene] for each, and the single shared [Renderer] they all draw through. The renderer is scene-agnostic
- * (`drawScene` reads the scene off the [top.fifthlight.blazerod.render.api.resource.ModelInstance]), so one
- * instance — rewound once per frame via [rotateForFrame] — serves every registered model. Registration is done in
- * code for now (3a); 3c will add a JSON descriptor datasource on top of the same table.
+ * Client-side scene cache for the NPC models registered in the common [GlbModels] table: the lazily/async-loaded
+ * [RenderScene] per model id, plus the single shared [Renderer] they all draw through. The renderer is
+ * scene-agnostic (`drawScene` reads the scene off the [top.fifthlight.blazerod.render.api.resource.ModelInstance]),
+ * so one instance — rewound once per frame via [rotateForFrame] — serves every model.
  */
 object GlbModelRegistry {
     private val LOGGER = LogUtils.getLogger()
 
-    private val descriptors = LinkedHashMap<String, GlbModelDescriptor>()
     private val loadStates = HashMap<String, LoadState>()
 
     @Volatile
     private var sharedRenderer: Renderer<*, *>? = null
-
-    /**
-     * The model an NPC with no explicit modelId falls back to. Currently the first registered descriptor; 3b will
-     * give each entity its own synced modelId and this stays the safety default.
-     */
-    var defaultId: String? = null
-        private set
-
-    fun register(descriptor: GlbModelDescriptor) {
-        descriptors[descriptor.id] = descriptor
-        if (defaultId == null) defaultId = descriptor.id
-    }
-
-    fun descriptor(id: String): GlbModelDescriptor? = descriptors[id]
 
     /** The shared renderer, or null until the first model finishes loading. */
     fun renderer(): Renderer<*, *>? = sharedRenderer
@@ -61,7 +47,7 @@ object GlbModelRegistry {
      * null, so callers just skip the draw.
      */
     fun sceneFor(id: String): RenderScene? {
-        val descriptor = descriptors[id] ?: return null
+        val descriptor = GlbModels.descriptor(id) ?: return null
         val state = loadStates.getOrPut(id) { LoadState() }
         if (state.failed) return null
         if (!state.started) startLoad(descriptor, state)

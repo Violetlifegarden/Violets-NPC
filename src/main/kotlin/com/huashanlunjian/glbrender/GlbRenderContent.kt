@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender
 
+import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import net.minecraft.core.registries.Registries
 import net.minecraft.world.entity.EntityType
@@ -41,6 +42,10 @@ object GlbRenderContent {
         )
 
     fun register(bus: IEventBus) {
+        // The model-descriptor table is common data: the server cycles an NPC's modelId through it, the client
+        // resolves paths from it. Populate on both dists before either side can query it.
+        GlbModels.registerBuiltins()
+
         ENTITY_TYPES.register(bus)
         ITEMS.register(bus)
         bus.addListener(
