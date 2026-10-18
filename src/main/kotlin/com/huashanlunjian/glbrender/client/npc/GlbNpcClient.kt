@@ -1,6 +1,8 @@
 package com.huashanlunjian.glbrender.client.npc
 
 import com.huashanlunjian.glbrender.GlbRenderContent
+import com.huashanlunjian.glbrender.npc.GlbNpcClientHooks
+import net.minecraft.client.Minecraft
 import net.minecraft.world.item.CreativeModeTabs
 import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.IEventBus
@@ -18,6 +20,11 @@ import java.util.function.Consumer
  */
 object GlbNpcClient {
     fun register(bus: IEventBus) {
+        // The talk interaction opens its screen from the client side; the common GlbNpc reaches it through this hook
+        // so it never imports a client-only class.
+        GlbNpcClientHooks.openDialog = { name, lines ->
+            Minecraft.getInstance().setScreen(GlbDialogScreen(name, lines))
+        }
         bus.addListener(
             EventPriority.NORMAL,
             EntityRenderersEvent.RegisterRenderers::class.java,

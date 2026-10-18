@@ -42,6 +42,9 @@ interface GlbEditorContext {
     /** The NPC's per-instance vertex tint as a packed `0xAARRGGBB` int ([NO_TINT] = opaque white = untinted). */
     var tint: Int
 
+    /** The NPC's dialog lines as one `|`-separated string (empty = nothing to say). */
+    var dialogs: String
+
     /** The NPC's display name (empty = none). Backed by vanilla `Entity.customName`, not the config struct. */
     var displayName: String
 

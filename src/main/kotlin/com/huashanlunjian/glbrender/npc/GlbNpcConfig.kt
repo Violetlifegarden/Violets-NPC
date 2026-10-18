@@ -94,6 +94,21 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_TINT)
         set(value) = npc.entityData.set(DATA_TINT, value)
 
+    /**
+     * Raw dialog lines, one `|`-separated string (the editor's single field + the synced value). Split into
+     * [dialogLines] for display. Empty means the NPC has nothing to say, so a plain right-click does not open a dialog.
+     */
+    var dialogs: String
+        get() = npc.entityData.get(DATA_DIALOGS)
+        set(value) = npc.entityData.set(DATA_DIALOGS, value)
+
+    /** The dialog lines in talk order; the [GlbNpc.mobInteract] talk path walks these in the dialog screen. */
+    var dialogLines: List<String>
+        get() = dialogs.split('|').map { it.trim() }.filter { it.isNotEmpty() }
+        set(value) {
+            dialogs = value.joinToString("|")
+        }
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -117,6 +132,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
         tag.putBoolean(KEY_GLOWING, glowing)
         tag.putInt(KEY_TINT, tint)
+        tag.putString(KEY_DIALOGS, dialogs)
         return tag
     }
 
@@ -133,6 +149,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
         if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
         tint = if (tag.contains(KEY_TINT)) tag.getInt(KEY_TINT) else NO_TINT
+        if (tag.contains(KEY_DIALOGS)) dialogs = tag.getString(KEY_DIALOGS)
     }
 
     companion object {
@@ -160,6 +177,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_TINT: EntityDataAccessor<Int> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
+        private val DATA_DIALOGS: EntityDataAccessor<String> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -173,6 +192,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_MAX_HEALTH = "GlbMaxHealth"
         private const val KEY_GLOWING = "GlbGlowing"
         private const val KEY_TINT = "GlbTint"
+        private const val KEY_DIALOGS = "GlbDialogs"
 
         /** Opaque white packed `0xAARRGGBB`: the identity for the vertex-tint multiply (no tint). */
         const val NO_TINT = -0x1000000 // == 0xFFFFFFFF
@@ -200,6 +220,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_MAX_HEALTH, Float.NaN)
             builder.define(DATA_GLOWING, false)
             builder.define(DATA_TINT, NO_TINT)
+            builder.define(DATA_DIALOGS, "")
         }
     }
 }

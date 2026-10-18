@@ -25,7 +25,8 @@ import net.minecraft.world.level.Level
  *
  * All per-instance state (model id, transform overrides, behavior flags) lives in [config], which owns the synced
  * data, NBT persistence, and typed accessors. [modelId] is a convenience delegate kept for the renderer/interaction
- * callers. Right-clicking opens the CustomNPC-style editor menu ([GlbNpcMenu]) after starting an editing session.
+ * callers. Sneak right-clicking opens the CustomNPC-style editor menu ([GlbNpcMenu]); a plain right-click makes the
+ * NPC talk through its dialog lines (see [GlbNpcClientHooks.openDialog]).
  */
 class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(type, level) {
 
@@ -94,21 +95,40 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     }
 
     override fun mobInteract(player: Player, hand: InteractionHand): InteractionResult {
-        // Right-click opens the CustomNPC-style editor (replaces the temporary model-cycle). Server-side: start an
-        // editing session (so the C2S packets authorize this player for this NPC), then open the container menu,
-        // writing the entity id so the client factory can resolve the same NPC.
-        if (!level().isClientSide && hand == InteractionHand.MAIN_HAND && player is ServerPlayer) {
-            GlbNpcEditing.open(player, this)
-            player.openMenu(
-                object : MenuProvider {
-                    override fun getDisplayName(): Component = Component.literal("GLB NPC")
-                    override fun createMenu(windowId: Int, inv: Inventory, p: Player): AbstractContainerMenu =
-                        GlbNpcMenu(windowId, this@GlbNpc)
-                },
-                { buf -> buf.writeInt(id) },
-            )
+        if (hand != InteractionHand.MAIN_HAND) {
+            return InteractionResult.PASS
         }
-        return InteractionResult.sidedSuccess(level().isClientSide)
+        if (player.isSecondaryUseActive) {
+            // Sneak + right-click: the CustomNPC-style editor. Server-side: start an editing session (so the C2S
+            // packets authorize this player for this NPC), then open the container menu, writing the entity id so the
+            // client factory resolves the same NPC and GlbNpcClient's bound screen opens.
+            if (!level().isClientSide && player is ServerPlayer) {
+                GlbNpcEditing.open(player, this)
+                player.openMenu(
+                    object : MenuProvider {
+                        override fun getDisplayName(): Component = Component.literal("GLB NPC")
+                        override fun createMenu(windowId: Int, inv: Inventory, p: Player): AbstractContainerMenu =
+                            GlbNpcMenu(windowId, this@GlbNpc)
+                    },
+                    { buf -> buf.writeInt(id) },
+                )
+                return InteractionResult.CONSUME
+            }
+            return InteractionResult.sidedSuccess(level().isClientSide)
+        }
+        // Plain right-click: talk. The dialog lines are already synced on config, so the client walks them in a screen
+        // with no server round trip; the server just consumes the interaction so it does not also trigger item use.
+        if (level().isClientSide) {
+            val lines = config.dialogLines
+            if (lines.isNotEmpty()) {
+                GlbNpcClientHooks.openDialog?.invoke(
+                    displayName ?: Component.translatable(type.descriptionId),
+                    lines,
+                )
+                return InteractionResult.SUCCESS
+            }
+        }
+        return InteractionResult.PASS
     }
 
     // Keep the test NPC around long enough to be looked at: never despawn for distance or in peaceful.

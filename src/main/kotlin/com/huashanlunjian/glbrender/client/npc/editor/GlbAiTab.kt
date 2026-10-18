@@ -33,6 +33,10 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         y += 22
         label(5, y + 5, "Shelter")
         stubCycle(86, y, 60, "Darkness", "Sunlight", "Disabled")
+        y += 22
+        label(5, y + 5, "Dialog")
+        // Real: per-NPC dialog lines, |-separated; the plain-right-click talk screen walks them in order.
+        textField(60, y, 350, ctx.dialogs) { ctx.dialogs = it }
 
         // Right column: all placeholders.
         var r = 6
