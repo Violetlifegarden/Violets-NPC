@@ -6,6 +6,7 @@ import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.mojang.logging.LogUtils
 import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.util.Mth
 import org.joml.Matrix4f
 import top.fifthlight.blazerod.gl.Gl
@@ -103,6 +104,15 @@ object GlbNpcModels {
             // Glow = render at max light instead of the world's packed light (the TLM full-bright analogue; our
             // custom drawScene path bypasses vanilla's outline, so overriding the light arg is how glow is expressed).
             val light = if (entity.config.glowing) FULL_BRIGHT else packedLight
+            // Overlay atlas coordinates, mirroring vanilla EntityRenderer.getOverlayCoords: block-occlusion
+            // darkening when the NPC is standing inside a block, plus the burning row when it is on fire. Our
+            // drawScene path binds the real game overlay atlas (MinecraftSamplers), so passing a non-zero overlay
+            // is what makes a GLB NPC shade against walls/liquid and flash on fire like a normal mob. Hurt-flash is
+            // NOT here: vanilla expresses mob damage as a vertex-color multiply, not an overlay row (see tint path).
+            val overlay = OverlayTexture.pack(
+                if (entity.isInWall) 1.0f else 0.0f,
+                entity.isOnFire,
+            )
             // Per-instance color: the config's packed ARGB tint multiplies each material's base color (identity white
             // when untinted, so the default draw is unchanged).
             renderer.drawScene(
@@ -110,6 +120,7 @@ object GlbNpcModels {
                 GlbRenderTarget(colorView, depthView),
                 bodyMatrix,
                 light,
+                overlay = overlay,
                 tint = rgbaFromArgb(entity.config.tint),
             )
         } catch (error: RuntimeException) {
