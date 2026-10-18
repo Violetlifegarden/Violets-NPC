@@ -55,6 +55,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var followOwner: Boolean = false
     override var sit: Boolean = false
     override var lookPlayer: Boolean = true
+    override var profession: Int = GlbNpcConfig.PROFESSION_NONE
     override var onAttack: Int = GlbNpcConfig.RESPONSE_NOTHING
     override var maxHealth: Float = 20.0f
     override var glowing: Boolean = false
@@ -86,6 +87,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         followOwner = config?.followOwner ?: false
         sit = config?.sit ?: false
         lookPlayer = config?.lookPlayer ?: true
+        profession = config?.profession ?: GlbNpcConfig.PROFESSION_NONE
         onAttack = config?.onAttack ?: GlbNpcConfig.RESPONSE_NOTHING
         maxHealth = config?.effectiveMaxHealth() ?: 20.0f
         glowing = config?.glowing ?: false
@@ -152,7 +154,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         val id = npcId ?: return
         PacketDistributor.sendToServer(
             SetConfigPacket(
-                id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, onAttack, displayName,
+                id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, profession, onAttack, displayName,
                 maxHealth, glowing, tint, dialogs,
             ),
         )

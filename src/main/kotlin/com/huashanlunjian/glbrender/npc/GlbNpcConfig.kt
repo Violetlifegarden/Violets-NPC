@@ -60,6 +60,16 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         set(value) = npc.entityData.set(DATA_LOOK_PLAYER, value)
 
     /**
+     * The NPC's profession/job, mirroring CustomNPC's `DataAdvanced.NpcJob`: [PROFESSION_NONE] is a plain idle mob,
+     * [PROFESSION_GUARD] makes it proactively hunt and melee hostile mobs (see the guard goals in [GlbNpcGoals]). The
+     * value is read only inside goal `canUse` (never in a goal constructor, since `Mob`'s constructor registers goals
+     * before this config exists), so switching it at runtime re-gates behavior on the next tick with no teardown.
+     */
+    var profession: Int
+        get() = npc.entityData.get(DATA_PROFESSION)
+        set(value) = npc.entityData.set(DATA_PROFESSION, value)
+
+    /**
      * What the NPC does when it comes across / is attacked by a player, mirroring CustomNPC `DataAI.onAttack`:
      * [RESPONSE_RETALIATE]/[RESPONSE_PANIC]/[RESPONSE_FLEE]/[RESPONSE_NOTHING]. Panicked/fled behavior is expressed
      * through `AvoidEntityGoal<Player>` (see [GlbNpcGoals]); retaliate is a placeholder until an attack goal lands.
@@ -128,6 +138,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putBoolean(KEY_FOLLOW_OWNER, followOwner)
         tag.putBoolean(KEY_SIT, sit)
         tag.putBoolean(KEY_LOOK_PLAYER, lookPlayer)
+        tag.putInt(KEY_PROFESSION, profession)
         tag.putInt(KEY_ON_ATTACK, onAttack)
         if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
         tag.putBoolean(KEY_GLOWING, glowing)
@@ -145,6 +156,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (tag.contains(KEY_FOLLOW_OWNER)) followOwner = tag.getBoolean(KEY_FOLLOW_OWNER)
         if (tag.contains(KEY_SIT)) sit = tag.getBoolean(KEY_SIT)
         if (tag.contains(KEY_LOOK_PLAYER)) lookPlayer = tag.getBoolean(KEY_LOOK_PLAYER)
+        if (tag.contains(KEY_PROFESSION)) profession = tag.getInt(KEY_PROFESSION)
         if (tag.contains(KEY_ON_ATTACK)) onAttack = tag.getInt(KEY_ON_ATTACK)
         maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
         if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
@@ -169,6 +181,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_LOOK_PLAYER: EntityDataAccessor<Boolean> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_PROFESSION: EntityDataAccessor<Int> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
         private val DATA_ON_ATTACK: EntityDataAccessor<Int> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
         private val DATA_MAX_HEALTH: EntityDataAccessor<Float> =
@@ -188,6 +202,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_FOLLOW_OWNER = "GlbFollowOwner"
         private const val KEY_SIT = "GlbSit"
         private const val KEY_LOOK_PLAYER = "GlbLookPlayer"
+        private const val KEY_PROFESSION = "GlbProfession"
         private const val KEY_ON_ATTACK = "GlbOnAttack"
         private const val KEY_MAX_HEALTH = "GlbMaxHealth"
         private const val KEY_GLOWING = "GlbGlowing"
@@ -206,6 +221,10 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         const val RESPONSE_FLEE = 2
         const val RESPONSE_NOTHING = 3
 
+        // profession values (CustomNPC NpcJob vocabulary, trimmed to the professions we implement).
+        const val PROFESSION_NONE = 0
+        const val PROFESSION_GUARD = 1
+
         /** Static so it can run from the `Entity` superclass constructor, before a [GlbNpcConfig] instance exists. */
         fun defineSynchedData(builder: SynchedEntityData.Builder) {
             builder.define(DATA_MODEL_ID, "")
@@ -216,6 +235,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_FOLLOW_OWNER, false)
             builder.define(DATA_SIT, false)
             builder.define(DATA_LOOK_PLAYER, true)
+            builder.define(DATA_PROFESSION, PROFESSION_NONE)
             builder.define(DATA_ON_ATTACK, RESPONSE_NOTHING)
             builder.define(DATA_MAX_HEALTH, Float.NaN)
             builder.define(DATA_GLOWING, false)

@@ -24,6 +24,10 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         label(5, y + 5, "Look player")
         toggle(86, y, 60, ctx.lookPlayer) { ctx.lookPlayer = it }
         y += 22
+        label(5, y + 5, "Profession")
+        // Real: profession cycle; option order matches GlbNpcConfig.PROFESSION_* indices (Guard hunts hostile mobs).
+        cycleOption(86, y, 60, PROFESSION_OPTIONS, ctx.profession) { ctx.profession = it }
+        y += 22
         label(5, y + 5, "Response")
         // Real: onAttack response cycle; option order matches GlbNpcConfig.RESPONSE_* indices.
         cycleOption(86, y, 60, RESPONSE_OPTIONS, ctx.onAttack) { ctx.onAttack = it }
@@ -57,6 +61,9 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     }
 
     companion object {
+        /** Option labels in the same index order as `GlbNpcConfig.PROFESSION_*`. */
+        val PROFESSION_OPTIONS = arrayOf("None", "Guard")
+
         /** Option labels in the same index order as `GlbNpcConfig.RESPONSE_*` (retaliate is a not-yet-wired placeholder). */
         val RESPONSE_OPTIONS = arrayOf("Retaliate", "Panic", "Retreat", "Nothing")
     }

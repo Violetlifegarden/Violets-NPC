@@ -76,6 +76,7 @@ data class SetConfigPacket(
     val followOwner: Boolean,
     val sit: Boolean,
     val lookPlayer: Boolean,
+    val profession: Int,
     val onAttack: Int,
     val name: String,
     val maxHealth: Float,
@@ -100,6 +101,7 @@ data class SetConfigPacket(
                 buf.writeBoolean(packet.followOwner)
                 buf.writeBoolean(packet.sit)
                 buf.writeBoolean(packet.lookPlayer)
+                buf.writeVarInt(packet.profession)
                 buf.writeVarInt(packet.onAttack)
                 buf.writeUtf(packet.name, MAX_NAME)
                 buf.writeFloat(packet.maxHealth)
@@ -117,6 +119,7 @@ data class SetConfigPacket(
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
+                    buf.readVarInt(),
                     buf.readVarInt(),
                     buf.readUtf(MAX_NAME),
                     buf.readFloat(),
@@ -144,6 +147,11 @@ data class SetConfigPacket(
                 config.followOwner = packet.followOwner
                 config.sit = packet.sit
                 config.lookPlayer = packet.lookPlayer
+                // Clamp to the known profession set so a bad client can't select an unwired profession index.
+                config.profession = packet.profession.coerceIn(
+                    GlbNpcConfig.PROFESSION_NONE,
+                    GlbNpcConfig.PROFESSION_GUARD,
+                )
                 // Clamp to the known response set so a bad client can't select an unwired behavior index.
                 config.onAttack = packet.onAttack.coerceIn(
                     GlbNpcConfig.RESPONSE_RETALIATE,

@@ -33,6 +33,7 @@ interface GlbEditorContext {
     var followOwner: Boolean
     var sit: Boolean
     var lookPlayer: Boolean
+    var profession: Int
     var onAttack: Int
     var maxHealth: Float
 
