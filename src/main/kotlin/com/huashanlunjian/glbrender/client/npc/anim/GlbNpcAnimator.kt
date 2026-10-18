@@ -131,28 +131,41 @@ object GlbNpcAnimator {
         table: GlbAnimationTable,
         gameTick: Long,
         partialTick: Float,
+        forcedClip: String = "",
     ): Boolean {
         if (clips.isEmpty()) return false
 
         val ctx = frameCtx(entity, gameTick, partialTick)
-        val selected = table.select(ctx) ?: return false
-        // A single-clip rig (e.g. CesiumMan, which only ships a walk cycle) must resolve every state to that clip —
-        // that is the documented graceful degradation. A multi-clip rig must NOT: with no "idle" clip of its own,
-        // falling back to the first clip would make the NPC walk in place forever, which is far harder to notice
-        // than a frozen last pose.
-        val clip = resolveClip(clips, selected.clipKeys, fallbackToFirst = clips.size == 1) ?: return false
+        val previewClip = resolvePreviewClip(clips, forcedClip)
+        val auto = table.select(ctx)
+        val clip: AnimationItemImpl
+        val loop: GlbLoopMode
+        if (previewClip != null) {
+            // Editor preview: play the picked clip on a plain loop and nothing else (no swing overlay, no head look),
+            // so what the user sees is the authored clip rather than the clip plus gameplay layers.
+            clip = previewClip
+            loop = GlbLoopMode.LOOP
+        } else {
+            auto ?: return false
+            // A single-clip rig (e.g. CesiumMan, which only ships a walk cycle) must resolve every state to that clip
+            // — that is the documented graceful degradation. A multi-clip rig must NOT: with no "idle" clip of its
+            // own, falling back to the first clip would make the NPC walk in place forever, which is far harder to
+            // notice than a frozen last pose.
+            clip = resolveClip(clips, auto.clipKeys, fallbackToFirst = clips.size == 1) ?: return false
+            loop = auto.loop
+        }
 
         // Restart only when the resolved clip or its loop mode actually changes; re-selecting the same walking clip
         // frame after frame must keep advancing, not re-seek to zero (name+loop dedup, mirroring TLM's setAnimation).
-        if (clip !== runtime.baseClip || selected.loop != runtime.baseLoop || runtime.baseState == null) {
+        if (clip !== runtime.baseClip || loop != runtime.baseLoop || runtime.baseState == null) {
             // Upstream clears every animated transform on a state switch so bones the new clip does not touch fall
             // back to the bind pose instead of keeping the previous clip's last pose.
             instance.clearTransform()
             val itemInstance = AnimationItemInstance.Factory.of(clip)
             val animState = itemInstance.createState(NpcAnimationContext(entity, gameTick, partialTick))
-            (animState as? SimpleAnimationState)?.let { applyLoopMode(it, selected.loop) }
+            (animState as? SimpleAnimationState)?.let { applyLoopMode(it, loop) }
             runtime.baseClip = clip
-            runtime.baseLoop = selected.loop
+            runtime.baseLoop = loop
             runtime.baseItem = itemInstance
             runtime.baseState = animState
             runtime.actionClip = null
@@ -170,15 +183,17 @@ object GlbNpcAnimator {
         // standing still. Freeze it on idle and resume otherwise, mirroring the player's ClipStateMachine.
         // Multi-clip rigs are unaffected — their idle row resolves to a real idle clip that applyLoopMode already
         // set to loop, so the walk->idle clip *name* change hits the restart block and re-seeks normally.
-        if (clips.size == 1) {
-            (animState as? SimpleAnimationState)?.paused = selected.id == "idle"
+        if (previewClip == null && clips.size == 1) {
+            (animState as? SimpleAnimationState)?.paused = auto?.id == "idle"
         }
 
         animState.updateTime(playContext)
         itemInstance.apply(instance, itemInstance.update(playContext, animState))
 
-        applyAction(runtime, entity, instance, clips, playContext)
-        applyHeadTracking(runtime, entity, instance, partialTick)
+        if (previewClip == null) {
+            applyAction(runtime, entity, instance, clips, playContext)
+            applyHeadTracking(runtime, entity, instance, partialTick)
+        }
         return true
     }
 
@@ -310,6 +325,16 @@ object GlbNpcAnimator {
             EntityType.PIG -> GlbVehicle.PIG
             else -> GlbVehicle.OTHER
         }
+    }
+
+    /**
+     * Resolves the editor's forced clip override by exact (case-insensitive) name. Null means "no override, or the
+     * name is not on this model" — both fall through to the normal priority table, so a stale value left behind by a
+     * model switch degrades to automatic behavior instead of freezing the NPC.
+     */
+    private fun resolvePreviewClip(clips: List<AnimationItemImpl>, forcedName: String): AnimationItemImpl? {
+        if (forcedName.isEmpty()) return null
+        return clips.firstOrNull { (it.name ?: "").equals(forcedName, ignoreCase = true) }
     }
 
     /**

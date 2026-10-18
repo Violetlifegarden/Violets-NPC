@@ -58,6 +58,11 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         r += 22
         label(150, r + 5, "Movement")
         stubButton(230, r, 60, "Edit")
+        r += 22
+        // Real: animation preview. CNPC's analogue is movement.animation (a fixed DataAI vocabulary); ours is the
+        // model's own clip names, so every clip a rig ships can be reviewed in-game.
+        label(150, r + 5, "Animation")
+        clipCycle(215, r, 190)
     }
 
     companion object {

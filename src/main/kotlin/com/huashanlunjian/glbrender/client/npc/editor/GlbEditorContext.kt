@@ -46,6 +46,12 @@ interface GlbEditorContext {
     /** The NPC's dialog lines as one `|`-separated string (empty = nothing to say). */
     var dialogs: String
 
+    /** Forced animation clip name for editor preview; empty = the normal locomotion state machine. */
+    var clip: String
+
+    /** The clip names the NPC's current model carries, for the preview cycle (empty while the scene loads). */
+    fun clipNames(): List<String>
+
     /** The NPC's display name (empty = none). Backed by vanilla `Entity.customName`, not the config struct. */
     var displayName: String
 

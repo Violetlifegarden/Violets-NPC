@@ -119,6 +119,15 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             dialogs = value.joinToString("|")
         }
 
+    /**
+     * Editor animation preview: a clip name to force-play regardless of the locomotion state machine. Empty means
+     * "auto" (the normal [GlbNpcAnimator] priority table). A name the model does not carry falls back to auto, so a
+     * stale value after a model switch degrades gracefully. Synced like the other fields; render-only (no behavior).
+     */
+    var clip: String
+        get() = npc.entityData.get(DATA_CLIP)
+        set(value) = npc.entityData.set(DATA_CLIP, value)
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -144,6 +153,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putBoolean(KEY_GLOWING, glowing)
         tag.putInt(KEY_TINT, tint)
         tag.putString(KEY_DIALOGS, dialogs)
+        tag.putString(KEY_CLIP, clip)
         return tag
     }
 
@@ -162,6 +172,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
         tint = if (tag.contains(KEY_TINT)) tag.getInt(KEY_TINT) else NO_TINT
         if (tag.contains(KEY_DIALOGS)) dialogs = tag.getString(KEY_DIALOGS)
+        if (tag.contains(KEY_CLIP)) clip = tag.getString(KEY_CLIP)
     }
 
     companion object {
@@ -193,6 +204,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
         private val DATA_DIALOGS: EntityDataAccessor<String> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
+        private val DATA_CLIP: EntityDataAccessor<String> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -208,6 +221,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_GLOWING = "GlbGlowing"
         private const val KEY_TINT = "GlbTint"
         private const val KEY_DIALOGS = "GlbDialogs"
+        private const val KEY_CLIP = "GlbClip"
 
         /** Opaque white packed `0xAARRGGBB`: the identity for the vertex-tint multiply (no tint). */
         const val NO_TINT = -1 // 0xFFFFFFFF as a signed Int; NOT -0x1000000 (that is 0xFF000000 = opaque black)
@@ -241,6 +255,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_GLOWING, false)
             builder.define(DATA_TINT, NO_TINT)
             builder.define(DATA_DIALOGS, "")
+            builder.define(DATA_CLIP, "")
         }
     }
 }

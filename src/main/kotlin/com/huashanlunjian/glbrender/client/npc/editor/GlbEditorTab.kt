@@ -99,6 +99,19 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         )
     }
 
+    /**
+     * Animation-preview cycle over the current model's clips (`Auto` = empty = normal state machine). Reads the list
+     * live so it stays correct after a model switch; the new name is pushed to [GlbEditorContext.clip] and committed.
+     */
+    protected fun clipCycle(x: Int, y: Int, w: Int) {
+        add(
+            GlbClipCycleButton(guiLeft + x, guiTop + y, w, { ctx.clipNames() }, { ctx.clip }) { name ->
+                ctx.clip = name
+                ctx.applyConfig()
+            },
+        )
+    }
+
     // --- placeholder controls (CNPC buttons we do not implement) ---
 
     protected fun stubButton(x: Int, y: Int, w: Int, text: String) {

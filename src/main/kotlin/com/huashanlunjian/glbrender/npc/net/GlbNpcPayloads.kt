@@ -83,6 +83,7 @@ data class SetConfigPacket(
     val glowing: Boolean,
     val tint: Int,
     val dialogs: String,
+    val clip: String,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -108,6 +109,7 @@ data class SetConfigPacket(
                 buf.writeBoolean(packet.glowing)
                 buf.writeInt(packet.tint)
                 buf.writeUtf(packet.dialogs, MAX_DIALOG)
+                buf.writeUtf(packet.clip, MAX_CLIP)
             },
             { buf ->
                 SetConfigPacket(
@@ -126,6 +128,7 @@ data class SetConfigPacket(
                     buf.readBoolean(),
                     buf.readInt(),
                     buf.readUtf(MAX_DIALOG),
+                    buf.readUtf(MAX_CLIP),
                 )
             },
         )
@@ -168,6 +171,7 @@ data class SetConfigPacket(
                 config.glowing = packet.glowing
                 config.tint = packet.tint
                 config.dialogs = packet.dialogs
+                config.clip = packet.clip.trim()
             }
         }
 
@@ -175,6 +179,7 @@ data class SetConfigPacket(
         private const val SCALE_MAX = 16.0f
         private const val MAX_NAME = 64
         private const val MAX_DIALOG = 1024
+        private const val MAX_CLIP = 128
         private const val MIN_HEALTH = 1.0f
         private const val MAX_HEALTH = 512.0f
     }

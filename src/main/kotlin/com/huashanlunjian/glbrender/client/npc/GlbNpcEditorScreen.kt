@@ -61,6 +61,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var glowing: Boolean = false
     override var tint: Int = GlbNpcConfig.NO_TINT
     override var dialogs: String = menu.npc?.config?.dialogs ?: ""
+    override var clip: String = menu.npc?.config?.clip ?: ""
     override var displayName: String = menu.npc?.customName?.string ?: ""
 
     private var currentTab = TAB_DISPLAY
@@ -93,6 +94,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         glowing = config?.glowing ?: false
         tint = config?.tint ?: GlbNpcConfig.NO_TINT
         dialogs = config?.dialogs ?: ""
+        clip = config?.clip ?: ""
     }
 
     override fun init() {
@@ -145,6 +147,11 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
 
     override fun currentModelId(): String = menu.npc?.modelId ?: ""
 
+    override fun clipNames(): List<String> {
+        val id = currentModelId().ifEmpty { GlbModels.defaultId ?: return emptyList() }
+        return GlbModelRegistry.clipsFor(id)?.mapNotNull { it.name } ?: emptyList()
+    }
+
     override fun applyModel(modelId: String) {
         val id = npcId ?: return
         PacketDistributor.sendToServer(SetModelPacket(id, modelId))
@@ -155,7 +162,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         PacketDistributor.sendToServer(
             SetConfigPacket(
                 id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, profession, onAttack, displayName,
-                maxHealth, glowing, tint, dialogs,
+                maxHealth, glowing, tint, dialogs, clip,
             ),
         )
     }

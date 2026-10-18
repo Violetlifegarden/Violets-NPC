@@ -90,7 +90,7 @@ object GlbNpcModels {
                 val gameTick = Minecraft.getInstance().level?.gameTime ?: entity.tickCount.toLong()
                 GlbNpcAnimator.animate(
                     entry.anim, entity, instance, clips,
-                    GlbModelRegistry.animationTable, gameTick, partialTick,
+                    GlbModelRegistry.animationTable, gameTick, partialTick, entity.config.clip,
                 )
             }
             instance.updateRenderData(partialTick)
