@@ -2,6 +2,7 @@ package com.huashanlunjian.glbrender.npc.net
 
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.mojang.logging.LogUtils
 import net.minecraft.network.RegistryFriendlyByteBuf
 import net.minecraft.network.chat.Component
@@ -75,6 +76,7 @@ data class SetConfigPacket(
     val followOwner: Boolean,
     val sit: Boolean,
     val lookPlayer: Boolean,
+    val onAttack: Int,
     val name: String,
     val maxHealth: Float,
     val glowing: Boolean,
@@ -96,6 +98,7 @@ data class SetConfigPacket(
                 buf.writeBoolean(packet.followOwner)
                 buf.writeBoolean(packet.sit)
                 buf.writeBoolean(packet.lookPlayer)
+                buf.writeVarInt(packet.onAttack)
                 buf.writeUtf(packet.name, MAX_NAME)
                 buf.writeFloat(packet.maxHealth)
                 buf.writeBoolean(packet.glowing)
@@ -110,6 +113,7 @@ data class SetConfigPacket(
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
+                    buf.readVarInt(),
                     buf.readUtf(MAX_NAME),
                     buf.readFloat(),
                     buf.readBoolean(),
@@ -134,6 +138,11 @@ data class SetConfigPacket(
                 config.followOwner = packet.followOwner
                 config.sit = packet.sit
                 config.lookPlayer = packet.lookPlayer
+                // Clamp to the known response set so a bad client can't select an unwired behavior index.
+                config.onAttack = packet.onAttack.coerceIn(
+                    GlbNpcConfig.RESPONSE_RETALIATE,
+                    GlbNpcConfig.RESPONSE_NOTHING,
+                )
                 // Name lives on vanilla Entity.customName (already synched + persisted), not in config. Empty clears it.
                 val name = packet.name.trim()
                 npc.setCustomName(if (name.isEmpty()) null else Component.literal(name))

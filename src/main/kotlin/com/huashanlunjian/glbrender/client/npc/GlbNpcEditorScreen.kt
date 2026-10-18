@@ -11,6 +11,7 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
+import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.huashanlunjian.glbrender.npc.GlbNpcMenu
 import com.huashanlunjian.glbrender.npc.net.SetConfigPacket
 import com.huashanlunjian.glbrender.npc.net.SetModelPacket
@@ -54,6 +55,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var followOwner: Boolean = false
     override var sit: Boolean = false
     override var lookPlayer: Boolean = true
+    override var onAttack: Int = GlbNpcConfig.RESPONSE_NOTHING
     override var maxHealth: Float = 20.0f
     override var glowing: Boolean = false
     override var displayName: String = menu.npc?.customName?.string ?: ""
@@ -82,6 +84,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         followOwner = config?.followOwner ?: false
         sit = config?.sit ?: false
         lookPlayer = config?.lookPlayer ?: true
+        onAttack = config?.onAttack ?: GlbNpcConfig.RESPONSE_NOTHING
         maxHealth = config?.effectiveMaxHealth() ?: 20.0f
         glowing = config?.glowing ?: false
     }
@@ -145,7 +148,8 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         val id = npcId ?: return
         PacketDistributor.sendToServer(
             SetConfigPacket(
-                id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, displayName, maxHealth, glowing,
+                id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, onAttack, displayName,
+                maxHealth, glowing,
             ),
         )
     }

@@ -75,10 +75,12 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun registerGoals() {
         goalSelector.addGoal(0, FloatGoal(this))
         goalSelector.addGoal(1, GlbSitGoal(this))
-        goalSelector.addGoal(2, GlbFollowPlayerGoal(this))
-        goalSelector.addGoal(3, GlbWanderGoal(this))
-        goalSelector.addGoal(4, GlbLookPlayerGoal(this))
-        goalSelector.addGoal(5, RandomLookAroundGoal(this))
+        goalSelector.addGoal(2, GlbPanicGoal(this))
+        goalSelector.addGoal(3, GlbFleeGoal(this))
+        goalSelector.addGoal(4, GlbFollowPlayerGoal(this))
+        goalSelector.addGoal(5, GlbWanderGoal(this))
+        goalSelector.addGoal(6, GlbLookPlayerGoal(this))
+        goalSelector.addGoal(7, RandomLookAroundGoal(this))
     }
 
     override fun addAdditionalSaveData(tag: CompoundTag) {

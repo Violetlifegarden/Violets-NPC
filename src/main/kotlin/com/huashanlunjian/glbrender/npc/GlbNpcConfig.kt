@@ -60,6 +60,15 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         set(value) = npc.entityData.set(DATA_LOOK_PLAYER, value)
 
     /**
+     * What the NPC does when it comes across / is attacked by a player, mirroring CustomNPC `DataAI.onAttack`:
+     * [RESPONSE_RETALIATE]/[RESPONSE_PANIC]/[RESPONSE_FLEE]/[RESPONSE_NOTHING]. Panicked/fled behavior is expressed
+     * through `AvoidEntityGoal<Player>` (see [GlbNpcGoals]); retaliate is a placeholder until an attack goal lands.
+     */
+    var onAttack: Int
+        get() = npc.entityData.get(DATA_ON_ATTACK)
+        set(value) = npc.entityData.set(DATA_ON_ATTACK, value)
+
+    /**
      * Per-instance max-health override, or [Float.NaN] to inherit the entity default. The attribute itself is
      * server-only and not readable on the client's entity copy, so this synced mirror is what the editor displays;
      * [GlbNpc.applyMaxHealth] is what actually pushes it onto the `MAX_HEALTH` attribute on the server.
@@ -95,6 +104,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putBoolean(KEY_FOLLOW_OWNER, followOwner)
         tag.putBoolean(KEY_SIT, sit)
         tag.putBoolean(KEY_LOOK_PLAYER, lookPlayer)
+        tag.putInt(KEY_ON_ATTACK, onAttack)
         if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
         tag.putBoolean(KEY_GLOWING, glowing)
         return tag
@@ -109,6 +119,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (tag.contains(KEY_FOLLOW_OWNER)) followOwner = tag.getBoolean(KEY_FOLLOW_OWNER)
         if (tag.contains(KEY_SIT)) sit = tag.getBoolean(KEY_SIT)
         if (tag.contains(KEY_LOOK_PLAYER)) lookPlayer = tag.getBoolean(KEY_LOOK_PLAYER)
+        if (tag.contains(KEY_ON_ATTACK)) onAttack = tag.getInt(KEY_ON_ATTACK)
         maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
         if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
     }
@@ -130,6 +141,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_LOOK_PLAYER: EntityDataAccessor<Boolean> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_ON_ATTACK: EntityDataAccessor<Int> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
         private val DATA_MAX_HEALTH: EntityDataAccessor<Float> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.FLOAT)
         private val DATA_GLOWING: EntityDataAccessor<Boolean> =
@@ -143,11 +156,18 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_FOLLOW_OWNER = "GlbFollowOwner"
         private const val KEY_SIT = "GlbSit"
         private const val KEY_LOOK_PLAYER = "GlbLookPlayer"
+        private const val KEY_ON_ATTACK = "GlbOnAttack"
         private const val KEY_MAX_HEALTH = "GlbMaxHealth"
         private const val KEY_GLOWING = "GlbGlowing"
 
         /** Fallback max health when no per-instance override is set (matches the vanilla mob default). */
         const val DEFAULT_HEALTH = 20.0f
+
+        // onAttack response values (CustomNPC DataAI.onAttack vocabulary).
+        const val RESPONSE_RETALIATE = 0
+        const val RESPONSE_PANIC = 1
+        const val RESPONSE_FLEE = 2
+        const val RESPONSE_NOTHING = 3
 
         /** Static so it can run from the `Entity` superclass constructor, before a [GlbNpcConfig] instance exists. */
         fun defineSynchedData(builder: SynchedEntityData.Builder) {
@@ -159,6 +179,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_FOLLOW_OWNER, false)
             builder.define(DATA_SIT, false)
             builder.define(DATA_LOOK_PLAYER, true)
+            builder.define(DATA_ON_ATTACK, RESPONSE_NOTHING)
             builder.define(DATA_MAX_HEALTH, Float.NaN)
             builder.define(DATA_GLOWING, false)
         }

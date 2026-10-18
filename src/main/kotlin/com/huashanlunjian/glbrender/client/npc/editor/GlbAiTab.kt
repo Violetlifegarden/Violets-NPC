@@ -25,7 +25,8 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         toggle(86, y, 60, ctx.lookPlayer) { ctx.lookPlayer = it }
         y += 22
         label(5, y + 5, "Response")
-        stubCycle(86, y, 60, "Retaliate", "Panic", "Retreat", "Nothing")
+        // Real: onAttack response cycle; option order matches GlbNpcConfig.RESPONSE_* indices.
+        cycleOption(86, y, 60, RESPONSE_OPTIONS, ctx.onAttack) { ctx.onAttack = it }
         y += 22
         label(5, y + 5, "Doors")
         stubCycle(86, y, 60, "Break", "Open", "Disabled")
@@ -49,5 +50,10 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         r += 22
         label(150, r + 5, "Movement")
         stubButton(230, r, 60, "Edit")
+    }
+
+    companion object {
+        /** Option labels in the same index order as `GlbNpcConfig.RESPONSE_*` (retaliate is a not-yet-wired placeholder). */
+        val RESPONSE_OPTIONS = arrayOf("Retaliate", "Panic", "Retreat", "Nothing")
     }
 }

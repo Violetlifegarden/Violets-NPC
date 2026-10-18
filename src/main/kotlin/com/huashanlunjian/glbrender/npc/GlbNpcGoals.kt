@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.npc
 
+import net.minecraft.world.entity.ai.goal.AvoidEntityGoal
 import net.minecraft.world.entity.ai.goal.Goal
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal
@@ -120,4 +121,24 @@ class GlbSitGoal(private val npc: GlbNpc) : Goal() {
 /** Looks at nearby players only while [GlbNpcConfig.lookPlayer] is on (a self-gated wrapper over the vanilla goal). */
 class GlbLookPlayerGoal(private val npc: GlbNpc) : LookAtPlayerGoal(npc, Player::class.java, 8.0f) {
     override fun canUse(): Boolean = npc.config.lookPlayer && super.canUse()
+}
+
+/**
+ * Continuously avoids nearby players while [GlbNpcConfig.onAttack] is [GlbNpcConfig.RESPONSE_FLEE] — the vanilla
+ * `AvoidEntityGoal` (flees within a radius, sprinting when cornered), gated so switching the response takes effect on
+ * the next evaluation with no selector teardown.
+ */
+class GlbFleeGoal(private val npc: GlbNpc) : AvoidEntityGoal<Player>(npc, Player::class.java, 8.0f, 1.6, 1.6) {
+    override fun canUse(): Boolean = npc.config.onAttack == GlbNpcConfig.RESPONSE_FLEE && super.canUse()
+}
+
+/**
+ * Flees from the nearest player only AFTER taking damage, while [GlbNpcConfig.onAttack] is
+ * [GlbNpcConfig.RESPONSE_PANIC]: the same `AvoidEntityGoal` mechanism, but [canUse] also requires `hurtTime > 0`
+ * (set for a few ticks right after [net.minecraft.world.entity.LivingEntity.hurt]), so an undamaged panicked NPC
+ * stays put. Uses a wider radius + faster escape than [GlbFleeGoal] to read as panic rather than casual wariness.
+ */
+class GlbPanicGoal(private val npc: GlbNpc) : AvoidEntityGoal<Player>(npc, Player::class.java, 16.0f, 2.0, 2.5) {
+    override fun canUse(): Boolean =
+        npc.config.onAttack == GlbNpcConfig.RESPONSE_PANIC && npc.hurtTime > 0 && super.canUse()
 }

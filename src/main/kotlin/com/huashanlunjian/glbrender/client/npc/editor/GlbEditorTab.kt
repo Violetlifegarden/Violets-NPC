@@ -89,6 +89,16 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         )
     }
 
+    /** A real cycle button over a fixed [options] list; the new index is pushed to [assign], then the config committed. */
+    protected fun cycleOption(x: Int, y: Int, w: Int, options: Array<String>, initial: Int, assign: (Int) -> Unit) {
+        add(
+            GlbCycleButton(guiLeft + x, guiTop + y, w, options, initial.coerceIn(0, options.lastIndex)) { index ->
+                assign(index)
+                ctx.applyConfig()
+            },
+        )
+    }
+
     // --- placeholder controls (CNPC buttons we do not implement) ---
 
     protected fun stubButton(x: Int, y: Int, w: Int, text: String) {
