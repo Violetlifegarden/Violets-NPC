@@ -76,12 +76,17 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun registerGoals() {
         goalSelector.addGoal(0, FloatGoal(this))
         goalSelector.addGoal(1, GlbSitGoal(this))
-        goalSelector.addGoal(2, GlbPanicGoal(this))
-        goalSelector.addGoal(3, GlbFleeGoal(this))
-        goalSelector.addGoal(4, GlbFollowPlayerGoal(this))
-        goalSelector.addGoal(5, GlbWanderGoal(this))
-        goalSelector.addGoal(6, GlbLookPlayerGoal(this))
-        goalSelector.addGoal(7, RandomLookAroundGoal(this))
+        // Guard's melee goal sits just under sit (so a sitting guard won't chase) and above the reactive flee/panic
+        // and locomotion goals; it only ever starts when profession==GUARD and a target is set below.
+        goalSelector.addGoal(2, GlbGuardAttackGoal(this))
+        goalSelector.addGoal(3, GlbPanicGoal(this))
+        goalSelector.addGoal(4, GlbFleeGoal(this))
+        goalSelector.addGoal(5, GlbFollowPlayerGoal(this))
+        goalSelector.addGoal(6, GlbWanderGoal(this))
+        goalSelector.addGoal(7, GlbLookPlayerGoal(this))
+        goalSelector.addGoal(8, RandomLookAroundGoal(this))
+        // The guard's target acquisition lives in the target selector; it sets getTarget() for the melee goal above.
+        targetSelector.addGoal(1, GlbGuardTargetGoal(this))
     }
 
     override fun addAdditionalSaveData(tag: CompoundTag) {
@@ -142,5 +147,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
                 .add(Attributes.MAX_HEALTH, 20.0)
                 .add(Attributes.MOVEMENT_SPEED, 0.27)
                 .add(Attributes.FOLLOW_RANGE, 16.0)
+                // Only consumed by the guard profession's melee goal (GlbGuardAttackGoal); harmless for other NPCs.
+                .add(Attributes.ATTACK_DAMAGE, 4.0)
     }
 }

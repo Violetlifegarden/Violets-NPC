@@ -3,7 +3,10 @@ package com.huashanlunjian.glbrender.npc
 import net.minecraft.world.entity.ai.goal.AvoidEntityGoal
 import net.minecraft.world.entity.ai.goal.Goal
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
+import net.minecraft.world.entity.ai.goal.MeleeAttackGoal
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal
+import net.minecraft.world.entity.monster.Monster
 import net.minecraft.world.entity.player.Player
 import java.util.EnumSet
 
@@ -141,4 +144,29 @@ class GlbFleeGoal(private val npc: GlbNpc) : AvoidEntityGoal<Player>(npc, Player
 class GlbPanicGoal(private val npc: GlbNpc) : AvoidEntityGoal<Player>(npc, Player::class.java, 16.0f, 2.0, 2.5) {
     override fun canUse(): Boolean =
         npc.config.onAttack == GlbNpcConfig.RESPONSE_PANIC && npc.hurtTime > 0 && super.canUse()
+}
+
+/**
+ * Proactively acquires the nearest hostile [Monster] as the NPC's attack target, but only while
+ * [GlbNpcConfig.profession] is [GlbNpcConfig.PROFESSION_GUARD] — CustomNPC's `JobGuard` feeding a shared target
+ * predicate, reshaped as a self-gating goal so switching profession re-gates on the next tick with no teardown.
+ *
+ * Targets monsters (the vanilla `Monster` hostiles) rather than players: a guard fighting what players fight reads as
+ * protective and needs no ownership/faction model, and it can never turn on the player standing next to it. A
+ * configurable entity-id whitelist (CNPC's `GuardTargets`) is the natural later extension.
+ */
+class GlbGuardTargetGoal(private val npc: GlbNpc) : NearestAttackableTargetGoal<Monster>(npc, Monster::class.java, true) {
+    override fun canUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canUse()
+    override fun canContinueToUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canContinueToUse()
+}
+
+/**
+ * Chases and melee-hits the NPC's current attack target while [GlbNpcConfig.profession] is
+ * [GlbNpcConfig.PROFESSION_GUARD] — the execution half of the guard profession (CustomNPC's generic melee attack goal,
+ * which is only live once a target is set by [GlbGuardTargetGoal]). Damage comes from the `ATTACK_DAMAGE` attribute
+ * registered on [GlbNpc]. Holds MOVE+LOOK+JUMP, so it is outranked by [GlbSitGoal] (a sitting guard stays put).
+ */
+class GlbGuardAttackGoal(private val npc: GlbNpc) : MeleeAttackGoal(npc, 1.2, true) {
+    override fun canUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canUse()
+    override fun canContinueToUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canContinueToUse()
 }
