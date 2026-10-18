@@ -2,6 +2,7 @@ package top.fifthlight.blazerod.render.api.resource
 
 import org.joml.Matrix4f
 import org.joml.Matrix4fc
+import top.fifthlight.blazerod.gl.GlbOverlay
 import top.fifthlight.blazerod.model.NodeTransform
 import top.fifthlight.blazerod.model.NodeTransformView
 import top.fifthlight.blazerod.model.RgbaColor
@@ -31,7 +32,7 @@ interface ModelInstance : RefCount {
     fun createRenderTask(
         modelMatrix: Matrix4fc,
         light: Int,
-        overlay: Int = 0,
+        overlay: Int = GlbOverlay.NO_OVERLAY,
         tint: RgbaColor = RgbaColor(1f, 1f, 1f, 1f),
     ): RenderTask
 

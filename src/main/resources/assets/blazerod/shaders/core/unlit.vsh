@@ -13,12 +13,14 @@ in vec2 UV0;
 
 // Lightmap texture
 uniform sampler2D SamplerLightMap;
+uniform sampler2D SamplerOverlay;
 
 out float sphericalVertexDistance;
 out float cylindricalVertexDistance;
 
 out vec4 vertexColor;
 out vec4 lightMapColor;
+out vec4 overlayColor;
 out vec2 texCoord0;
 
 void main() {
@@ -37,5 +39,6 @@ void main() {
     gl_Position = vertex_position;
     vertexColor = color;
     lightMapColor = texelFetch(SamplerLightMap, instance.light_map_uv / 16, 0);
+    overlayColor = texelFetch(SamplerOverlay, instance.overlay_uv, 0);
     texCoord0 = texCoord;
 }

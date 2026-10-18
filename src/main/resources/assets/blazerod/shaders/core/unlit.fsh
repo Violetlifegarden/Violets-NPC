@@ -13,6 +13,7 @@ in float cylindricalVertexDistance;
 
 in vec4 vertexColor;
 in vec4 lightMapColor;
+in vec4 overlayColor;
 in vec2 texCoord0;
 
 out vec4 fragColor;
@@ -25,6 +26,7 @@ void main() {
     }
 #endif
     color *= vertexColor * BaseColor;
+    color.rgb = mix(overlayColor.rgb, color.rgb, overlayColor.a);
     color *= lightMapColor;
     if (color.a == 0.0) {
         discard;

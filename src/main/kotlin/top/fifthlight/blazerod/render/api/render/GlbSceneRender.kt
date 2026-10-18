@@ -1,6 +1,7 @@
 package top.fifthlight.blazerod.render.api.render
 
 import org.joml.Matrix4fc
+import top.fifthlight.blazerod.gl.GlbOverlay
 import top.fifthlight.blazerod.gl.GpuTextureView
 import top.fifthlight.blazerod.model.RgbaColor
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
@@ -27,7 +28,7 @@ fun Renderer<*, *>.drawScene(
     target: GlbRenderTarget,
     modelMatrix: Matrix4fc,
     light: Int,
-    overlay: Int = 0,
+    overlay: Int = GlbOverlay.NO_OVERLAY,
     tint: RgbaColor = RgbaColor(1f, 1f, 1f, 1f),
 ) {
     val task = instance.createRenderTask(modelMatrix, light, overlay, tint)

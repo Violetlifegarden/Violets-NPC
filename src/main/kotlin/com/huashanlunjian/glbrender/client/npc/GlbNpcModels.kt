@@ -124,15 +124,12 @@ object GlbNpcModels {
             // Glow = render at max light instead of the world's packed light (the TLM full-bright analogue; our
             // custom drawScene path bypasses vanilla's outline, so overriding the light arg is how glow is expressed).
             val light = if (entity.config.glowing) FULL_BRIGHT else packedLight
-            // Overlay atlas coordinates, mirroring vanilla EntityRenderer.getOverlayCoords: block-occlusion
-            // darkening when the NPC is standing inside a block, plus the burning row when it is on fire. Our
-            // drawScene path binds the real game overlay atlas (MinecraftSamplers), so passing a non-zero overlay
-            // is what makes a GLB NPC shade against walls/liquid and flash on fire like a normal mob. Hurt-flash is
-            // NOT here: vanilla expresses mob damage as a vertex-color multiply, not an overlay row (see tint path).
-            val overlay = OverlayTexture.pack(
-                if (entity.isInWall) 1.0f else 0.0f,
-                entity.isOnFire,
-            )
+            // Overlay atlas coordinates, mirroring vanilla LivingEntityRenderer.getOverlayCoords: the red damage row
+            // while hurtTime/deathTime is running, otherwise the neutral white texel. Our drawScene path binds the
+            // real game overlay atlas (MinecraftSamplers) and the shaders mix this texel over the base color, so hurt
+            // now flashes red exactly like a vanilla mob. (Fire and in-wall shading are separate vanilla layers /
+            // lightmap effects, not overlay rows.)
+            val overlay = OverlayTexture.pack(0.0f, entity.hurtTime > 0 || entity.deathTime > 0)
             val tint = rgbaFromArgb(entity.config.tint)
             // T2 batching: the shared renderer supports scheduling, which groups same-scene tasks and draws each
             // primitive once with all instances (see executeScheduled). `renderInstanced` carries light/overlay/model

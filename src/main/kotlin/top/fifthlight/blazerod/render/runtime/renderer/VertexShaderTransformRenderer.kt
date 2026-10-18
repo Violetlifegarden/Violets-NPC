@@ -210,6 +210,7 @@ class VertexShaderTransformRenderer private constructor() :
                             withBlend(BlendFunction.TRANSLUCENT)
                             withSampler("SamplerBaseColor")
                             withSampler("SamplerLightMap")
+                            withSampler("SamplerOverlay")
                             withUniform("UnlitData", UniformType.UNIFORM_BUFFER)
                         }
 
@@ -386,6 +387,7 @@ class VertexShaderTransformRenderer private constructor() :
                     is RenderMaterial.Unlit -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
                         bindSampler("SamplerLightMap", Gl.samplers.lightMap)
+                        bindSampler("SamplerOverlay", Gl.samplers.overlay)
                     }
 
                     is RenderMaterial.Vanilla -> {
@@ -565,6 +567,7 @@ class VertexShaderTransformRenderer private constructor() :
                     is RenderMaterial.Unlit -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
                         bindSampler("SamplerLightMap", Gl.samplers.lightMap)
+                        bindSampler("SamplerOverlay", Gl.samplers.overlay)
                     }
 
                     is RenderMaterial.Vanilla -> {
