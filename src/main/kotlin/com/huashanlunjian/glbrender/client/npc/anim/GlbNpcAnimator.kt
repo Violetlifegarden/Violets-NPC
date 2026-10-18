@@ -88,6 +88,9 @@ object GlbNpcAnimator {
         HumanoidTag.HEAD,
     )
 
+    /** Prefix every Mixamo joint carries, in either separator form. */
+    private const val MIXAMO_PREFIX = "mixamorig_"
+
     /** Mixamo bone names for the tags the head/upper-body layers need. Mirrors the player pose driver's resolver. */
     private val MIXAMO_NAMES = mapOf(
         HumanoidTag.HEAD to "Head",
@@ -133,7 +136,11 @@ object GlbNpcAnimator {
 
         val ctx = frameCtx(entity, gameTick, partialTick)
         val selected = table.select(ctx) ?: return false
-        val clip = resolveClip(clips, selected.clipKeys, fallbackToFirst = true) ?: return false
+        // A single-clip rig (e.g. CesiumMan, which only ships a walk cycle) must resolve every state to that clip —
+        // that is the documented graceful degradation. A multi-clip rig must NOT: with no "idle" clip of its own,
+        // falling back to the first clip would make the NPC walk in place forever, which is far harder to notice
+        // than a frozen last pose.
+        val clip = resolveClip(clips, selected.clipKeys, fallbackToFirst = clips.size == 1) ?: return false
 
         // Restart only when the resolved clip or its loop mode actually changes; re-selecting the same walking clip
         // frame after frame must keep advancing, not re-seek to zero (name+loop dedup, mirroring TLM's setAnimation).
@@ -390,7 +397,20 @@ object GlbNpcAnimator {
         tag.pmxEnglish?.let { scene.nodeNameMap[it] }?.let { return it.nodeIndex }
         val mixamoName = MIXAMO_NAMES[tag] ?: return null
         return scene.nodeNameMap.entries.firstOrNull { (name, _) ->
-            name.substringAfterLast(':').equals(mixamoName, ignoreCase = true)
+            isMixamoBoneNamed(name, mixamoName)
         }?.value?.nodeIndex
+    }
+
+    /**
+     * Matches a Mixamo bone in either separator form: a glTF straight out of Blender keeps `mixamorig:Head`, while a
+     * rig that went through Godot's importer (and our clip baker therefore names its tracks that way) carries
+     * `mixamorig_Head`. Only the prefix may contain the separator, so a plain `Left_Hand`-style name is not
+     * mistaken for a Mixamo bone.
+     */
+    private fun isMixamoBoneNamed(name: String, want: String): Boolean {
+        if (name.substringAfterLast(':').equals(want, ignoreCase = true)) return true
+        val normalized = name.replace(':', '_')
+        return normalized.startsWith(MIXAMO_PREFIX, ignoreCase = true) &&
+            normalized.substring(MIXAMO_PREFIX.length).equals(want, ignoreCase = true)
     }
 }
