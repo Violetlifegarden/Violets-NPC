@@ -75,6 +75,16 @@ object GlbNpcAnimator {
         val itemInstance = runtime.itemInstance ?: return false
         val animState = runtime.animState ?: return false
         val playContext = NpcAnimationContext(entity, gameTick, partialTick)
+
+        // Single-clip rigs (e.g. Cubism's one walk cycle): idle resolves to the same walk clip as walk, so the
+        // restart block above never fires on a walk->idle transition and the clip would keep looping while
+        // standing still. Freeze it on idle and resume otherwise, mirroring the player's ClipStateMachine.
+        // Multi-clip rigs are unaffected — their idle row resolves to a real idle clip that applyLoopMode already
+        // set to loop, so the walk->idle clip *name* change hits the restart block and re-seeks normally.
+        if (clips.size == 1) {
+            (animState as? SimpleAnimationState)?.paused = selected.id == "idle"
+        }
+
         animState.updateTime(playContext)
         val pendingValues = itemInstance.update(playContext, animState)
         itemInstance.apply(instance, pendingValues)
