@@ -17,6 +17,9 @@ import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import java.util.HashMap
 import java.util.UUID
 
+/** LightTexture.FULL_BRIGHT, redefined so we don't pull the client class in for the glow light arg. */
+private const val FULL_BRIGHT = 15728880
+
 /**
  * Renderer-side glue for the NPC draw: it owns the per-entity [ModelInstance] and the camera-relative body matrix,
  * and pulls the model (descriptor from the common [GlbModels], loaded scene + shared renderer from
@@ -96,7 +99,10 @@ object GlbNpcModels {
                 .rotateY(yawRadians)
                 .scale(scale)
                 .translate(0f, groundOffsetY, 0f)
-            renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), bodyMatrix, packedLight)
+            // Glow = render at max light instead of the world's packed light (the TLM full-bright analogue; our
+            // custom drawScene path bypasses vanilla's outline, so overriding the light arg is how glow is expressed).
+            val light = if (entity.config.glowing) FULL_BRIGHT else packedLight
+            renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), bodyMatrix, light)
         } catch (error: RuntimeException) {
             LOGGER.error("glbrender: npc draw failed", error)
         }

@@ -50,6 +50,7 @@ class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         label(5, y + 5, "Overlay")
         stubField(80, y, 150)
         label(245, y + 5, "Glowing")
-        stubYesNo(300, y, 40, false)
+        // Real: full-bright glow toggle (our custom drawScene renderer bypasses vanilla outline, so glow = max light).
+        toggle(300, y, 40, ctx.glowing) { ctx.glowing = it }
     }
 }

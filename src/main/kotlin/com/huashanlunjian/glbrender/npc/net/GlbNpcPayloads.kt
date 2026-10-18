@@ -75,6 +75,7 @@ data class SetConfigPacket(
     val followOwner: Boolean,
     val name: String,
     val maxHealth: Float,
+    val glowing: Boolean,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -93,6 +94,7 @@ data class SetConfigPacket(
                 buf.writeBoolean(packet.followOwner)
                 buf.writeUtf(packet.name, MAX_NAME)
                 buf.writeFloat(packet.maxHealth)
+                buf.writeBoolean(packet.glowing)
             },
             { buf ->
                 SetConfigPacket(
@@ -104,6 +106,7 @@ data class SetConfigPacket(
                     buf.readBoolean(),
                     buf.readUtf(MAX_NAME),
                     buf.readFloat(),
+                    buf.readBoolean(),
                 )
             },
         )
@@ -131,6 +134,7 @@ data class SetConfigPacket(
                 config.maxHealth = if (packet.maxHealth.isNaN()) Float.NaN
                 else packet.maxHealth.coerceIn(MIN_HEALTH, MAX_HEALTH)
                 npc.applyMaxHealth()
+                config.glowing = packet.glowing
             }
         }
 

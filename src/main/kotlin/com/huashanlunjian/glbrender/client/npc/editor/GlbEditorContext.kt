@@ -33,6 +33,9 @@ interface GlbEditorContext {
     var followOwner: Boolean
     var maxHealth: Float
 
+    /** Whether the NPC renders at full brightness (glow). */
+    var glowing: Boolean
+
     /** The NPC's display name (empty = none). Backed by vanilla `Entity.customName`, not the config struct. */
     var displayName: String
 

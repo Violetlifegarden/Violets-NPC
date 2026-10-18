@@ -58,6 +58,14 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_MAX_HEALTH)
         set(value) = npc.entityData.set(DATA_MAX_HEALTH, value)
 
+    /**
+     * Whether the NPC renders at full brightness (see-through-glow look). Drives [GlbNpcModels.draw] to pass
+     * `FULL_BRIGHT` as the scene light instead of the world's packed light. Rendered client-side from this synced flag.
+     */
+    var glowing: Boolean
+        get() = npc.entityData.get(DATA_GLOWING)
+        set(value) = npc.entityData.set(DATA_GLOWING, value)
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -76,6 +84,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putBoolean(KEY_WANDER, wander)
         tag.putBoolean(KEY_FOLLOW_OWNER, followOwner)
         if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
+        tag.putBoolean(KEY_GLOWING, glowing)
         return tag
     }
 
@@ -87,6 +96,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (tag.contains(KEY_WANDER)) wander = tag.getBoolean(KEY_WANDER)
         if (tag.contains(KEY_FOLLOW_OWNER)) followOwner = tag.getBoolean(KEY_FOLLOW_OWNER)
         maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
+        if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
     }
 
     companion object {
@@ -104,6 +114,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_MAX_HEALTH: EntityDataAccessor<Float> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.FLOAT)
+        private val DATA_GLOWING: EntityDataAccessor<Boolean> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -112,6 +124,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_WANDER = "GlbWander"
         private const val KEY_FOLLOW_OWNER = "GlbFollowOwner"
         private const val KEY_MAX_HEALTH = "GlbMaxHealth"
+        private const val KEY_GLOWING = "GlbGlowing"
 
         /** Fallback max health when no per-instance override is set (matches the vanilla mob default). */
         const val DEFAULT_HEALTH = 20.0f
@@ -125,6 +138,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_WANDER, true)
             builder.define(DATA_FOLLOW_OWNER, false)
             builder.define(DATA_MAX_HEALTH, Float.NaN)
+            builder.define(DATA_GLOWING, false)
         }
     }
 }
