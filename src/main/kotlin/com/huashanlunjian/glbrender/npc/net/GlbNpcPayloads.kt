@@ -80,6 +80,7 @@ data class SetConfigPacket(
     val name: String,
     val maxHealth: Float,
     val glowing: Boolean,
+    val tint: Int,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -102,6 +103,7 @@ data class SetConfigPacket(
                 buf.writeUtf(packet.name, MAX_NAME)
                 buf.writeFloat(packet.maxHealth)
                 buf.writeBoolean(packet.glowing)
+                buf.writeInt(packet.tint)
             },
             { buf ->
                 SetConfigPacket(
@@ -117,6 +119,7 @@ data class SetConfigPacket(
                     buf.readUtf(MAX_NAME),
                     buf.readFloat(),
                     buf.readBoolean(),
+                    buf.readInt(),
                 )
             },
         )
@@ -152,6 +155,7 @@ data class SetConfigPacket(
                 else packet.maxHealth.coerceIn(MIN_HEALTH, MAX_HEALTH)
                 npc.applyMaxHealth()
                 config.glowing = packet.glowing
+                config.tint = packet.tint
             }
         }
 

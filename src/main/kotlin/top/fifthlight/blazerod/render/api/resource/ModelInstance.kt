@@ -4,6 +4,7 @@ import org.joml.Matrix4f
 import org.joml.Matrix4fc
 import top.fifthlight.blazerod.model.NodeTransform
 import top.fifthlight.blazerod.model.NodeTransformView
+import top.fifthlight.blazerod.model.RgbaColor
 import top.fifthlight.blazerod.model.TransformId
 import top.fifthlight.blazerod.render.api.refcount.RefCount
 import java.util.function.Consumer
@@ -31,6 +32,7 @@ interface ModelInstance : RefCount {
         modelMatrix: Matrix4fc,
         light: Int,
         overlay: Int = 0,
+        tint: RgbaColor = RgbaColor(1f, 1f, 1f, 1f),
     ): RenderTask
 
     /**

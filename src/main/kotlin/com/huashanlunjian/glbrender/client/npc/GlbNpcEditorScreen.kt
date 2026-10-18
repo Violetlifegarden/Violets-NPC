@@ -58,6 +58,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var onAttack: Int = GlbNpcConfig.RESPONSE_NOTHING
     override var maxHealth: Float = 20.0f
     override var glowing: Boolean = false
+    override var tint: Int = GlbNpcConfig.NO_TINT
     override var displayName: String = menu.npc?.customName?.string ?: ""
 
     private var currentTab = TAB_DISPLAY
@@ -87,6 +88,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         onAttack = config?.onAttack ?: GlbNpcConfig.RESPONSE_NOTHING
         maxHealth = config?.effectiveMaxHealth() ?: 20.0f
         glowing = config?.glowing ?: false
+        tint = config?.tint ?: GlbNpcConfig.NO_TINT
     }
 
     override fun init() {
@@ -149,7 +151,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         PacketDistributor.sendToServer(
             SetConfigPacket(
                 id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, onAttack, displayName,
-                maxHealth, glowing,
+                maxHealth, glowing, tint,
             ),
         )
     }

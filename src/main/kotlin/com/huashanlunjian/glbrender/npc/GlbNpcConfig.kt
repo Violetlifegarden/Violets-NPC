@@ -85,6 +85,15 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_GLOWING)
         set(value) = npc.entityData.set(DATA_GLOWING, value)
 
+    /**
+     * Per-instance vertex tint as a packed `0xAARRGGBB` int, multiplied component-wise into each material's base
+     * color at draw time (see [GlbNpcModels.draw] -> `drawScene` -> `RgbaColor.times`). Defaults to [NO_TINT]
+     * (`0xFFFFFFFF`, opaque white), whose multiply is the identity, so an untinted NPC renders byte-identical to before.
+     */
+    var tint: Int
+        get() = npc.entityData.get(DATA_TINT)
+        set(value) = npc.entityData.set(DATA_TINT, value)
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -107,6 +116,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putInt(KEY_ON_ATTACK, onAttack)
         if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
         tag.putBoolean(KEY_GLOWING, glowing)
+        tag.putInt(KEY_TINT, tint)
         return tag
     }
 
@@ -122,6 +132,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (tag.contains(KEY_ON_ATTACK)) onAttack = tag.getInt(KEY_ON_ATTACK)
         maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
         if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
+        tint = if (tag.contains(KEY_TINT)) tag.getInt(KEY_TINT) else NO_TINT
     }
 
     companion object {
@@ -147,6 +158,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.FLOAT)
         private val DATA_GLOWING: EntityDataAccessor<Boolean> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_TINT: EntityDataAccessor<Int> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -159,6 +172,10 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_ON_ATTACK = "GlbOnAttack"
         private const val KEY_MAX_HEALTH = "GlbMaxHealth"
         private const val KEY_GLOWING = "GlbGlowing"
+        private const val KEY_TINT = "GlbTint"
+
+        /** Opaque white packed `0xAARRGGBB`: the identity for the vertex-tint multiply (no tint). */
+        const val NO_TINT = -0x1000000 // == 0xFFFFFFFF
 
         /** Fallback max health when no per-instance override is set (matches the vanilla mob default). */
         const val DEFAULT_HEALTH = 20.0f
@@ -182,6 +199,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_ON_ATTACK, RESPONSE_NOTHING)
             builder.define(DATA_MAX_HEALTH, Float.NaN)
             builder.define(DATA_GLOWING, false)
+            builder.define(DATA_TINT, NO_TINT)
         }
     }
 }

@@ -14,6 +14,7 @@ import top.fifthlight.blazerod.render.common.util.iterator.mapToArray
 import top.fifthlight.blazerod.render.common.util.refcount.AbstractRefCount
 import top.fifthlight.blazerod.model.NodeTransform
 import top.fifthlight.blazerod.model.NodeTransformView
+import top.fifthlight.blazerod.model.RgbaColor
 import top.fifthlight.blazerod.model.TransformId
 import top.fifthlight.blazerod.render.runtime.node.RenderNodeImpl
 import top.fifthlight.blazerod.render.runtime.node.TransformMap
@@ -227,12 +228,14 @@ class ModelInstanceImpl(
         modelMatrix: Matrix4fc,
         light: Int,
         overlay: Int,
+        tint: RgbaColor,
     ): RenderTaskImpl {
         return RenderTaskImpl(
             instance = this,
             modelMatrix = modelMatrix,
             light = light,
             overlay = overlay,
+            tint = tint,
             localMatricesBuffer = modelData.localMatricesBuffer.copy(),
             skinBuffer = modelData.skinBuffers.copy(),
             morphTargetBuffer = modelData.targetBuffers.copy().also { buffer ->

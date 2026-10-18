@@ -15,6 +15,7 @@ import it.unimi.dsi.fastutil.ints.Int2ReferenceMap
 import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector2i
+import top.fifthlight.blazerod.model.times
 import top.fifthlight.blazerod.render.common.runtime.data.MorphTargetBuffer
 import top.fifthlight.blazerod.render.common.runtime.data.RenderSkinBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.FogUniformBuffer
@@ -347,13 +348,13 @@ class VertexShaderTransformRenderer private constructor() :
                 is RenderMaterial.Pbr -> {}
                 is RenderMaterial.Unlit -> {
                     unlitData = UnlitDataUniformBuffer.write {
-                        baseColor = material.baseColor
+                        baseColor = material.baseColor * task.tint
                     }
                 }
 
                 is RenderMaterial.Vanilla -> {
                     vanillaData = VanillaDataUniformBuffer.write {
-                        baseColor = material.baseColor
+                        baseColor = material.baseColor * task.tint
                     }
                 }
             }

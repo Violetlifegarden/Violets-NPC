@@ -2,6 +2,7 @@ package top.fifthlight.blazerod.render.runtime
 
 import org.joml.Matrix4f
 import org.joml.Matrix4fc
+import top.fifthlight.blazerod.model.RgbaColor
 import top.fifthlight.blazerod.render.common.BlazeRod
 import top.fifthlight.blazerod.render.api.resource.RenderTask
 import top.fifthlight.blazerod.render.common.runtime.data.LocalMatricesBuffer
@@ -13,6 +14,7 @@ class RenderTaskImpl(
     val instance: ModelInstanceImpl,
     val light: Int,
     val overlay: Int,
+    val tint: RgbaColor,
     modelMatrix: Matrix4fc,
     val localMatricesBuffer: CowBuffer<LocalMatricesBuffer>,
     val skinBuffer: List<CowBuffer<RenderSkinBuffer>>,

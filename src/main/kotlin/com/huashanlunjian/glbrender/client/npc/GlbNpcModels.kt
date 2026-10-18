@@ -11,6 +11,7 @@ import org.joml.Matrix4f
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTexture
 import top.fifthlight.blazerod.gl.TextureFormat
+import top.fifthlight.blazerod.model.rgbaFromArgb
 import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
 import top.fifthlight.blazerod.render.api.render.drawScene
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
@@ -102,7 +103,15 @@ object GlbNpcModels {
             // Glow = render at max light instead of the world's packed light (the TLM full-bright analogue; our
             // custom drawScene path bypasses vanilla's outline, so overriding the light arg is how glow is expressed).
             val light = if (entity.config.glowing) FULL_BRIGHT else packedLight
-            renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), bodyMatrix, light)
+            // Per-instance color: the config's packed ARGB tint multiplies each material's base color (identity white
+            // when untinted, so the default draw is unchanged).
+            renderer.drawScene(
+                instance,
+                GlbRenderTarget(colorView, depthView),
+                bodyMatrix,
+                light,
+                tint = rgbaFromArgb(entity.config.tint),
+            )
         } catch (error: RuntimeException) {
             LOGGER.error("glbrender: npc draw failed", error)
         }
