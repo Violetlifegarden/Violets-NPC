@@ -195,7 +195,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_DIALOGS = "GlbDialogs"
 
         /** Opaque white packed `0xAARRGGBB`: the identity for the vertex-tint multiply (no tint). */
-        const val NO_TINT = -0x1000000 // == 0xFFFFFFFF
+        const val NO_TINT = -1 // 0xFFFFFFFF as a signed Int; NOT -0x1000000 (that is 0xFF000000 = opaque black)
 
         /** Fallback max health when no per-instance override is set (matches the vanilla mob default). */
         const val DEFAULT_HEALTH = 20.0f
