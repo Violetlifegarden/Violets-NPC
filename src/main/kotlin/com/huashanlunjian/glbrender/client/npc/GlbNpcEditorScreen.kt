@@ -1,12 +1,15 @@
 package com.huashanlunjian.glbrender.client.npc
 
+import com.huashanlunjian.glbrender.client.npc.editor.GlbStepper
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
+import com.huashanlunjian.glbrender.client.npc.editor.GlbToggleYesNo
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpcMenu
 import com.huashanlunjian.glbrender.npc.net.SetConfigPacket
 import com.huashanlunjian.glbrender.npc.net.SetModelPacket
 import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.client.gui.components.AbstractWidget
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
 import net.minecraft.network.chat.Component
@@ -46,10 +49,8 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
 
     private val contentTabs = ArrayList<GlbTabButton>()
     private val modelButtons = ArrayList<Button>()
-    private val transformButtons = ArrayList<Button>()
-    private val behaviorButtons = ArrayList<Button>()
-    private var wanderButton: Button? = null
-    private var followButton: Button? = null
+    private val transformWidgets = ArrayList<AbstractWidget>()
+    private val behaviorWidgets = ArrayList<AbstractWidget>()
 
     init {
         imageWidth = PANEL_W
@@ -107,48 +108,47 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     }
 
     private fun buildTransformTab() {
-        addStepperRow(0, SCALE_STEP) { delta -> scaleVal = (scaleVal + delta).coerceIn(SCALE_MIN, SCALE_MAX) }
-        addStepperRow(1, YAW_STEP) { delta -> yawVal = (yawVal + delta).coerceIn(YAW_MIN, YAW_MAX) }
-        addStepperRow(2, GROUND_STEP) { delta -> groundVal = (groundVal + delta).coerceIn(GROUND_MIN, GROUND_MAX) }
-    }
-
-    private fun addStepperRow(row: Int, step: Float, apply: (Float) -> Unit) {
-        val y = topPos + CONTENT_TOP + row * 26
-        transformButtons.add(
+        transformWidgets.add(
             addRenderableWidget(
-                Button.builder(Component.literal("-")) { apply(-step); sendConfig() }
-                    .pos(leftPos + VALUE_X + 40, y).size(24, 18).build(),
+                GlbStepper(
+                    leftPos + STEPPER_X, topPos + CONTENT_TOP, STEPPER_W, scaleVal,
+                    SCALE_STEP, SCALE_MIN, SCALE_MAX, { fmt(it, 2) },
+                ) { value -> scaleVal = value; sendConfig() },
             ),
         )
-        transformButtons.add(
+        transformWidgets.add(
             addRenderableWidget(
-                Button.builder(Component.literal("+")) { apply(step); sendConfig() }
-                    .pos(leftPos + VALUE_X + 66, y).size(24, 18).build(),
+                GlbStepper(
+                    leftPos + STEPPER_X, topPos + CONTENT_TOP + 26, STEPPER_W, yawVal,
+                    YAW_STEP, YAW_MIN, YAW_MAX, { fmt(it, 1) },
+                ) { value -> yawVal = value; sendConfig() },
+            ),
+        )
+        transformWidgets.add(
+            addRenderableWidget(
+                GlbStepper(
+                    leftPos + STEPPER_X, topPos + CONTENT_TOP + 52, STEPPER_W, groundVal,
+                    GROUND_STEP, GROUND_MIN, GROUND_MAX, { fmt(it, 2) },
+                ) { value -> groundVal = value; sendConfig() },
             ),
         )
     }
 
     private fun buildBehaviorTab() {
-        val wander = addRenderableWidget(
-            Button.builder(Component.literal("Wander: ${onOff(wanderVal)}")) {
-                wanderVal = !wanderVal
-                wanderButton?.setMessage(Component.literal("Wander: ${onOff(wanderVal)}"))
-                sendConfig()
-            }
-                .pos(leftPos + CONTENT_X, topPos + CONTENT_TOP).size(CONTENT_W, 20).build(),
+        behaviorWidgets.add(
+            addRenderableWidget(
+                GlbToggleYesNo(leftPos + STEPPER_X, topPos + CONTENT_TOP, TOGGLE_W, wanderVal) {
+                    value -> wanderVal = value; sendConfig()
+                },
+            ),
         )
-        val follow = addRenderableWidget(
-            Button.builder(Component.literal("Follow owner: ${onOff(followVal)}")) {
-                followVal = !followVal
-                followButton?.setMessage(Component.literal("Follow owner: ${onOff(followVal)}"))
-                sendConfig()
-            }
-                .pos(leftPos + CONTENT_X, topPos + CONTENT_TOP + 24).size(CONTENT_W, 20).build(),
+        behaviorWidgets.add(
+            addRenderableWidget(
+                GlbToggleYesNo(leftPos + STEPPER_X, topPos + CONTENT_TOP + 26, TOGGLE_W, followVal) {
+                    value -> followVal = value; sendConfig()
+                },
+            ),
         )
-        wanderButton = wander
-        followButton = follow
-        behaviorButtons.add(wander)
-        behaviorButtons.add(follow)
     }
 
     private fun selectTab(tab: Int) {
@@ -159,8 +159,8 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
 
     private fun applyTabVisibility() {
         modelButtons.forEach { it.visible = currentTab == TAB_MODEL }
-        transformButtons.forEach { it.visible = currentTab == TAB_TRANSFORM }
-        behaviorButtons.forEach { it.visible = currentTab == TAB_BEHAVIOR }
+        transformWidgets.forEach { it.visible = currentTab == TAB_TRANSFORM }
+        behaviorWidgets.forEach { it.visible = currentTab == TAB_BEHAVIOR }
     }
 
     private fun sendConfig() {
@@ -196,20 +196,22 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
                 g.drawString(font, "Current: $label", leftPos + CONTENT_X, topPos + CONTENT_TOP - 11, 0xA0A0A0, false)
             }
             TAB_TRANSFORM -> {
-                drawTransformRow(g, 0, "Scale", fmt(scaleVal, 2))
-                drawTransformRow(g, 1, "Yaw", fmt(yawVal, 1))
-                drawTransformRow(g, 2, "Ground Y", fmt(groundVal, 2))
+                drawFieldLabel(g, 0, "Scale")
+                drawFieldLabel(g, 1, "Yaw")
+                drawFieldLabel(g, 2, "Ground Y")
+            }
+            TAB_BEHAVIOR -> {
+                drawFieldLabel(g, 0, "Wander")
+                drawFieldLabel(g, 1, "Follow owner")
             }
         }
     }
 
-    private fun drawTransformRow(g: GuiGraphics, row: Int, label: String, value: String) {
-        val y = topPos + CONTENT_TOP + row * 26 + 5
+    // The stepper / toggle widgets draw their own value text; this only renders the leading label at the row's left.
+    private fun drawFieldLabel(g: GuiGraphics, row: Int, label: String) {
+        val y = topPos + CONTENT_TOP + row * 26 + 6
         g.drawString(font, label, leftPos + CONTENT_X, y, 0xFFFFFF, false)
-        g.drawString(font, value, leftPos + VALUE_X, y, 0xFFFF80, false)
     }
-
-    private fun onOff(b: Boolean): String = if (b) "ON" else "OFF"
 
     private fun fmt(v: Float, decimals: Int): String = String.format(Locale.ROOT, "%.${decimals}f", v)
 
@@ -225,7 +227,9 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         const val CONTENT_X = 10
         const val CONTENT_TOP = 26
         const val CONTENT_W = 196
-        const val VALUE_X = 78
+        const val STEPPER_X = 74
+        const val STEPPER_W = 120
+        const val TOGGLE_W = 50
 
         const val PREVIEW_X = 216
         const val PREVIEW_W = 136
