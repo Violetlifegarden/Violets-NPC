@@ -1,29 +1,63 @@
 package com.huashanlunjian.glbrender.client.npc.anim
 
+import net.minecraft.util.Mth
+import net.minecraft.world.entity.EntityType
+import net.minecraft.world.entity.HumanoidArm
 import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.entity.Pose
+import net.minecraft.world.entity.vehicle.Boat
+import top.fifthlight.blazerod.model.HumanoidTag
+import top.fifthlight.blazerod.model.TransformId
 import top.fifthlight.blazerod.model.animation.AnimationState
 import top.fifthlight.blazerod.model.animation.SimpleAnimationState
 import top.fifthlight.blazerod.render.api.animation.AnimationItemInstance
+import top.fifthlight.blazerod.render.api.animation.MaskableAnimationItemInstance
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
+import top.fifthlight.blazerod.render.api.resource.RenderScene
 import top.fifthlight.blazerod.render.runtime.animation.AnimationItemImpl
+import kotlin.math.PI
 
 /**
- * Per-entity animation runtime: the single active clip plus its playback state. One NPC plays one clip at a time
- * (hard-cut in Step4-a2; a crossfade blends two of these in Step4-a3), so a runtime only needs to remember what it
- * last selected and its live [AnimationState]. Lifetime is tied to the NPC's [ModelInstance] cache in
- * `GlbNpcModels`, which drops both when the entity is removed.
+ * Per-entity animation runtime, the NPC counterpart of ArmorStand's `ModelController.LiveSwitched` state.
+ *
+ * It holds the two layers the controller evaluates each frame: the base life/locomotion clip and the optional
+ * upper-body action clip layered over it (swing). Both are cached so re-selecting the same row advances the clip
+ * instead of re-seeking it. The bone/mask caches are per-scene and rebuilt when the model changes.
+ *
+ * Lifetime is tied to the NPC's [ModelInstance] cache in `GlbNpcModels`, which drops both when the entity is
+ * removed.
  */
 class NpcAnimRuntime {
-    var currentClip: AnimationItemImpl? = null
-    var currentLoop: GlbLoopMode? = null
-    var itemInstance: AnimationItemInstance? = null
-    var animState: AnimationState? = null
+    internal var baseClip: AnimationItemImpl? = null
+    internal var baseLoop: GlbLoopMode? = null
+    internal var baseItem: AnimationItemInstance? = null
+    internal var baseState: AnimationState? = null
+
+    internal var actionClip: AnimationItemImpl? = null
+    internal var actionItem: AnimationItemInstance? = null
+    internal var actionState: AnimationState? = null
+    internal var actionArm: HumanoidArm? = null
+
+    internal var boneScene: RenderScene? = null
+    internal var boneNodeCount: Int = -1
+    internal var headNode: Int = -1
+    internal var leftUpperBodyMask: BooleanArray = BooleanArray(0)
+    internal var rightUpperBodyMask: BooleanArray = BooleanArray(0)
 
     fun reset() {
-        currentClip = null
-        currentLoop = null
-        itemInstance = null
-        animState = null
+        baseClip = null
+        baseLoop = null
+        baseItem = null
+        baseState = null
+        actionClip = null
+        actionItem = null
+        actionState = null
+        actionArm = null
+        boneScene = null
+        boneNodeCount = -1
+        headNode = -1
+        leftUpperBodyMask = BooleanArray(0)
+        rightUpperBodyMask = BooleanArray(0)
     }
 }
 
@@ -32,12 +66,54 @@ class NpcAnimRuntime {
  * ported glb-core [AnimationItemInstance] layer — the same layer the player's `ClipStateMachine` uses, but keyed
  * per-entity so several NPCs on screen can each be at a different point in (or a different) clip.
  *
+ * The controller follows ArmorStand's `LiveSwitched`: a base state machine (death > vehicle > sleep > swim/crawl >
+ * climb > crouch > sprint > walk > idle), a transform reset on state switch so untouched bones return to bind pose,
+ * a masked upper-body overlay for swing actions, and procedural head look on top of the clip.
+ *
  * This object is stateless; all per-entity state lives in the caller-owned [NpcAnimRuntime]. Clip selection is
  * first-match-wins by priority (the table's job); clip *resolution* maps the selected row's name fragments onto the
  * model's actual glTF clips with a first-contains match, falling back to the model's first clip so a single-clip rig
  * (CesiumMan) still animates every state instead of going static.
  */
 object GlbNpcAnimator {
+
+    /** Swing overlay candidates, matched strictly (no first-clip fallback: a rig without a swing clip gets no overlay). */
+    private val SWING_CLIP_KEYS = listOf("swing", "punch", "attack", "hit")
+
+    private val TORSO_TAGS = arrayOf(
+        HumanoidTag.SPINE,
+        HumanoidTag.CHEST,
+        HumanoidTag.UPPER_CHEST,
+        HumanoidTag.NECK,
+        HumanoidTag.HEAD,
+    )
+
+    /** Mixamo bone names for the tags the head/upper-body layers need. Mirrors the player pose driver's resolver. */
+    private val MIXAMO_NAMES = mapOf(
+        HumanoidTag.HEAD to "Head",
+        HumanoidTag.NECK to "Neck",
+        HumanoidTag.SPINE to "Spine",
+        HumanoidTag.CHEST to "Spine1",
+        HumanoidTag.UPPER_CHEST to "Spine2",
+        HumanoidTag.LEFT_SHOULDER to "LeftShoulder",
+        HumanoidTag.LEFT_UPPER_ARM to "LeftArm",
+        HumanoidTag.LEFT_LOWER_ARM to "LeftForeArm",
+        HumanoidTag.LEFT_HAND to "LeftHand",
+        HumanoidTag.RIGHT_SHOULDER to "RightShoulder",
+        HumanoidTag.RIGHT_UPPER_ARM to "RightArm",
+        HumanoidTag.RIGHT_LOWER_ARM to "RightForeArm",
+        HumanoidTag.RIGHT_HAND to "RightHand",
+    )
+
+    /**
+     * Whether this scene has a resolvable head bone. The caller uses it to split yaw: with a head bone the body
+     * follows `yBodyRot` and the head tracks the look direction; without one the whole model keeps following
+     * `yHeadRot` (the pre-T3 behaviour), because there is nothing to turn independently.
+     */
+    fun hasHeadBone(runtime: NpcAnimRuntime, scene: RenderScene): Boolean {
+        ensureBones(runtime, scene)
+        return runtime.headNode >= 0
+    }
 
     /**
      * Applies this frame's clip to [instance] for [entity]. Returns true when a clip wrote bone transforms (the
@@ -57,23 +133,29 @@ object GlbNpcAnimator {
 
         val ctx = frameCtx(entity, gameTick, partialTick)
         val selected = table.select(ctx) ?: return false
-        val clip = resolveClip(clips, selected.clipKeys) ?: return false
+        val clip = resolveClip(clips, selected.clipKeys, fallbackToFirst = true) ?: return false
 
         // Restart only when the resolved clip or its loop mode actually changes; re-selecting the same walking clip
         // frame after frame must keep advancing, not re-seek to zero (name+loop dedup, mirroring TLM's setAnimation).
-        if (clip !== runtime.currentClip || selected.loop != runtime.currentLoop || runtime.animState == null) {
-            val createContext = NpcAnimationContext(entity, gameTick, partialTick)
+        if (clip !== runtime.baseClip || selected.loop != runtime.baseLoop || runtime.baseState == null) {
+            // Upstream clears every animated transform on a state switch so bones the new clip does not touch fall
+            // back to the bind pose instead of keeping the previous clip's last pose.
+            instance.clearTransform()
             val itemInstance = AnimationItemInstance.Factory.of(clip)
-            val animState = itemInstance.createState(createContext)
+            val animState = itemInstance.createState(NpcAnimationContext(entity, gameTick, partialTick))
             (animState as? SimpleAnimationState)?.let { applyLoopMode(it, selected.loop) }
-            runtime.currentClip = clip
-            runtime.currentLoop = selected.loop
-            runtime.itemInstance = itemInstance
-            runtime.animState = animState
+            runtime.baseClip = clip
+            runtime.baseLoop = selected.loop
+            runtime.baseItem = itemInstance
+            runtime.baseState = animState
+            runtime.actionClip = null
+            runtime.actionItem = null
+            runtime.actionState = null
+            runtime.actionArm = null
         }
 
-        val itemInstance = runtime.itemInstance ?: return false
-        val animState = runtime.animState ?: return false
+        val itemInstance = runtime.baseItem ?: return false
+        val animState = runtime.baseState ?: return false
         val playContext = NpcAnimationContext(entity, gameTick, partialTick)
 
         // Single-clip rigs (e.g. Cubism's one walk cycle): idle resolves to the same walk clip as walk, so the
@@ -86,13 +168,98 @@ object GlbNpcAnimator {
         }
 
         animState.updateTime(playContext)
-        val pendingValues = itemInstance.update(playContext, animState)
-        itemInstance.apply(instance, pendingValues)
+        itemInstance.apply(instance, itemInstance.update(playContext, animState))
+
+        applyAction(runtime, entity, instance, clips, playContext)
+        applyHeadTracking(runtime, entity, instance, partialTick)
         return true
+    }
+
+    /**
+     * Layers the swing overlay over the base clip, masked to the torso and the swinging arm (ArmorStand's
+     * `applyMasked` path). Without a humanoid-tagged/mixamo arm the mask is empty and the overlay is applied in full,
+     * which is the only sensible fallback for a rig that cannot isolate the upper body.
+     */
+    private fun applyAction(
+        runtime: NpcAnimRuntime,
+        entity: LivingEntity,
+        instance: ModelInstance,
+        clips: List<AnimationItemImpl>,
+        context: NpcAnimationContext,
+    ) {
+        if (!entity.swinging) {
+            runtime.actionClip = null
+            runtime.actionItem = null
+            runtime.actionState = null
+            runtime.actionArm = null
+            return
+        }
+
+        val clip = resolveClip(clips, SWING_CLIP_KEYS, fallbackToFirst = false) ?: return
+        val arm = entity.mainArm
+        if (clip !== runtime.actionClip || arm != runtime.actionArm || runtime.actionState == null) {
+            val itemInstance = AnimationItemInstance.Factory.of(clip)
+            val animState = itemInstance.createState(context)
+            (animState as? SimpleAnimationState)?.let {
+                it.loop = false
+                it.paused = false
+            }
+            runtime.actionClip = clip
+            runtime.actionItem = itemInstance
+            runtime.actionState = animState
+            runtime.actionArm = arm
+        }
+
+        val itemInstance = runtime.actionItem ?: return
+        val animState = runtime.actionState ?: return
+        animState.updateTime(context)
+        val pendingValues = itemInstance.update(context, animState)
+
+        val maskable = itemInstance as? MaskableAnimationItemInstance
+        if (maskable == null) {
+            itemInstance.apply(instance, pendingValues)
+            return
+        }
+        ensureBones(runtime, instance.scene)
+        val mask = if (runtime.actionArm == HumanoidArm.LEFT) {
+            runtime.leftUpperBodyMask
+        } else {
+            runtime.rightUpperBodyMask
+        }
+        if (mask.any { it }) {
+            maskable.applyMasked(instance, pendingValues, mask)
+        } else {
+            itemInstance.apply(instance, pendingValues)
+        }
+    }
+
+    /**
+     * Turns the head toward the look direction, on top of whatever the clip wrote, exactly like ArmorStand's
+     * `LiveSwitched.apply`. Yaw is relative (head minus body) because the body matrix already carries `yBodyRot`.
+     */
+    private fun applyHeadTracking(
+        runtime: NpcAnimRuntime,
+        entity: LivingEntity,
+        instance: ModelInstance,
+        partialTick: Float,
+    ) {
+        ensureBones(runtime, instance.scene)
+        val headIndex = runtime.headNode
+        if (headIndex < 0) return
+
+        val headYaw = Mth.rotLerp(partialTick, entity.yHeadRotO, entity.yHeadRot) -
+            Mth.rotLerp(partialTick, entity.yBodyRotO, entity.yBodyRot)
+        val headPitch = entity.getViewXRot(partialTick)
+        val yawRadians = Mth.wrapDegrees(headYaw) * (PI.toFloat() / 180f)
+        val pitchRadians = headPitch * (PI.toFloat() / 180f)
+        instance.setTransformDecomposed(headIndex, TransformId.RELATIVE_ANIMATION) {
+            rotation.rotationYXZ(yawRadians, pitchRadians, 0f)
+        }
     }
 
     private fun frameCtx(entity: LivingEntity, gameTick: Long, partialTick: Float): GlbFrameCtx {
         val walk = entity.walkAnimation
+        val climbing = entity.onClimbable()
         return GlbFrameCtx(
             gameTick = gameTick,
             partialTick = partialTick,
@@ -103,16 +270,56 @@ object GlbNpcAnimator {
             isSprinting = entity.isSprinting,
             isDeadOrDying = entity.isDeadOrDying,
             hurtTime = entity.hurtTime,
+            isSleeping = entity.isSleeping,
+            vehicle = vehicleKind(entity),
+            isCrouching = entity.isCrouching,
+            isSwimming = entity.isSwimming,
+            // 1.21.1 has no separate crawling flag: swimming pose without the swimming flag is the crawl pose.
+            isCrawling = entity.pose == Pose.SWIMMING && !entity.isSwimming,
+            isClimbing = climbing,
+            climbDirection = when {
+                !climbing -> 0
+                entity.deltaMovement.y > 0.1 -> 1
+                entity.deltaMovement.y < -0.1 -> -1
+                else -> 0
+            },
         )
     }
 
-    private fun resolveClip(clips: List<AnimationItemImpl>, keys: List<String>): AnimationItemImpl? {
+    private fun vehicleKind(entity: LivingEntity): GlbVehicle = when (val vehicle = entity.vehicle) {
+        null -> GlbVehicle.NONE
+        is Boat -> GlbVehicle.BOAT
+        else -> when (vehicle.type) {
+            EntityType.HORSE,
+            EntityType.DONKEY,
+            EntityType.MULE,
+            EntityType.LLAMA,
+            EntityType.TRADER_LLAMA,
+            EntityType.SKELETON_HORSE,
+            EntityType.ZOMBIE_HORSE,
+            EntityType.CAMEL,
+            -> GlbVehicle.HORSE
+
+            EntityType.PIG -> GlbVehicle.PIG
+            else -> GlbVehicle.OTHER
+        }
+    }
+
+    /**
+     * Resolves the first clip whose name contains one of [keys]. With [fallbackToFirst] a rig without any matching
+     * clip still plays its first clip (graceful degradation for single-clip rigs); the swing overlay disables that
+     * so a missing swing clip does not replay the locomotion clip on the arms.
+     */
+    private fun resolveClip(
+        clips: List<AnimationItemImpl>,
+        keys: List<String>,
+        fallbackToFirst: Boolean,
+    ): AnimationItemImpl? {
         for (key in keys) {
             val match = clips.firstOrNull { (it.name ?: "").lowercase().contains(key) }
             if (match != null) return match
         }
-        // Graceful degradation: a rig without a clip for this state still plays its first clip rather than freezing.
-        return clips.firstOrNull()
+        return if (fallbackToFirst) clips.firstOrNull() else null
     }
 
     private fun applyLoopMode(state: SimpleAnimationState, loop: GlbLoopMode) {
@@ -128,5 +335,62 @@ object GlbNpcAnimator {
                 state.paused = false
             }
         }
+    }
+
+    /** Rebuilds the head index and the two upper-body masks when the scene changes (ArmorStand's ensureUpperBodyMasks). */
+    private fun ensureBones(runtime: NpcAnimRuntime, scene: RenderScene) {
+        val nodeCount = scene.nodes.size
+        if (runtime.boneScene === scene && runtime.boneNodeCount == nodeCount) return
+        runtime.boneScene = scene
+        runtime.boneNodeCount = nodeCount
+
+        runtime.headNode = resolveBone(scene, HumanoidTag.HEAD) ?: -1
+        val left = BooleanArray(nodeCount)
+        val right = BooleanArray(nodeCount)
+
+        fun enable(mask: BooleanArray, tag: HumanoidTag) {
+            val index = resolveBone(scene, tag) ?: return
+            if (index in mask.indices) mask[index] = true
+        }
+
+        for (tag in TORSO_TAGS) {
+            enable(left, tag)
+            enable(right, tag)
+        }
+        for (tag in HumanoidTag.entries) {
+            val name = tag.name
+            if (!isArmTag(name)) continue
+            when {
+                name.startsWith("LEFT_") -> enable(left, tag)
+                name.startsWith("RIGHT_") -> enable(right, tag)
+            }
+        }
+        runtime.leftUpperBodyMask = left
+        runtime.rightUpperBodyMask = right
+    }
+
+    /** Upper-body mask tags are the arm chains; legs/feet/toes are deliberately excluded. */
+    private fun isArmTag(name: String) =
+        name.contains("SHOULDER") ||
+            name.contains("ARM") ||
+            name.contains("HAND") ||
+            name.contains("THUMB") ||
+            name.contains("INDEX") ||
+            name.contains("MIDDLE") ||
+            name.contains("RING") ||
+            name.contains("LITTLE")
+
+    /**
+     * Resolves a humanoid bone for rigs that do not carry GLB humanoid tags: humanoid tag first, then VRM/PMX bone
+     * names, then the Mixamo naming scheme (`mixamorig:Head` etc.).
+     */
+    private fun resolveBone(scene: RenderScene, tag: HumanoidTag): Int? {
+        scene.humanoidTagMap[tag]?.let { return it.nodeIndex }
+        tag.vrmName?.let { scene.nodeNameMap[it] }?.let { return it.nodeIndex }
+        tag.pmxEnglish?.let { scene.nodeNameMap[it] }?.let { return it.nodeIndex }
+        val mixamoName = MIXAMO_NAMES[tag] ?: return null
+        return scene.nodeNameMap.entries.firstOrNull { (name, _) ->
+            name.substringAfterLast(':').equals(mixamoName, ignoreCase = true)
+        }?.value?.nodeIndex
     }
 }

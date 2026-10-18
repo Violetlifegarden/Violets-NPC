@@ -12,6 +12,9 @@ import kotlin.math.abs
  */
 enum class GlbLoopMode { LOOP, PLAY_ONCE, HOLD_ON_LAST_FRAME }
 
+/** Coarse vehicle kind, so the animation table stays a pure value type (no `net.minecraft` imports). */
+enum class GlbVehicle { NONE, HORSE, PIG, BOAT, OTHER }
+
 /**
  * A snapshot of everything an animation predicate needs, derived once per frame from the rendered entity. Keeping
  * the selector's inputs in a plain value type (rather than passing the `net.minecraft` entity) makes the priority
@@ -19,7 +22,7 @@ enum class GlbLoopMode { LOOP, PLAY_ONCE, HOLD_ON_LAST_FRAME }
  *
  * Field meanings follow the vanilla client `LivingEntity` conventions the TLM selector reads:
  * [limbSwing]/[limbSwingAmount] are `walkAnimation.position/speed(partialTick)`, [hurtTime] is the red-tint counter,
- * [isDeadOrDying] is `isDeadOrDying`.
+ * [isDeadOrDying] is `isDeadOrDying`. The life/pose fields mirror ArmorStand's `getBaseState` order.
  */
 data class GlbFrameCtx(
     val gameTick: Long,
@@ -31,6 +34,13 @@ data class GlbFrameCtx(
     val isSprinting: Boolean,
     val isDeadOrDying: Boolean,
     val hurtTime: Int,
+    val isSleeping: Boolean = false,
+    val vehicle: GlbVehicle = GlbVehicle.NONE,
+    val isCrouching: Boolean = false,
+    val isSwimming: Boolean = false,
+    val isCrawling: Boolean = false,
+    val isClimbing: Boolean = false,
+    val climbDirection: Int = 0,
 ) {
     /** Coarse "is locomoting" flag, matching TLM's `|limbSwingAmount| > 0.15`. */
     val isMoving: Boolean get() = abs(limbSwingAmount) > MOVE_THRESHOLD
@@ -77,9 +87,9 @@ class GlbAnimationTable(states: List<GlbAnimState>) {
 }
 
 /**
- * The stock locomotion/life-state table, ported from TouhouLittleMaid's default `AnimationRegister` set and trimmed
- * to the states a client-side `PathfinderMob` can observe without extra synced data. Priority order (HIGHEST->LOWEST)
- * and the per-state predicates mirror TLM's defaults: death > attack/swim/jump > run/walk > idle.
+ * The stock locomotion/life-state table. The state order and predicates follow ArmorStand's
+ * `ModelController.LiveSwitched.getBaseState` (death > vehicle > sleep > swim/crawl > climb > crouch > sprint >
+ * walk > idle), with TLM's `AnimationRegister` thresholds for "is moving".
  *
  * Clip names are conventional glTF/animation-set keys; a rig that only ships a single walk cycle (e.g. CesiumMan)
  * still resolves every state to that one clip via the first-contains fallback in the wiring layer, degrading
@@ -95,25 +105,64 @@ object GlbAnimationTables {
     /** TLM's `MIN_SPEED`: below this limbSwingAmount a grounded mob counts as standing, not walking. */
     private const val WALK_THRESHOLD = 0.05f
 
+    /** ArmorStand's `walkAnimationSpeed > .01` test for the crouch/crawl moving variants. */
+    private const val POSE_MOVE_THRESHOLD = 0.01f
+
     fun default(): GlbAnimationTable = GlbAnimationTable(
         listOf(
             GlbAnimState("death", listOf("death", "die"), GlbLoopMode.PLAY_ONCE, PRIORITY_HIGHEST) {
                 it.isDeadOrDying
             },
+            GlbAnimState("onHorse", listOf("horse"), GlbLoopMode.LOOP, PRIORITY_HIGH) {
+                it.vehicle == GlbVehicle.HORSE
+            },
+            GlbAnimState("onPig", listOf("pig"), GlbLoopMode.LOOP, PRIORITY_HIGH) {
+                it.vehicle == GlbVehicle.PIG
+            },
+            GlbAnimState("onBoat", listOf("boat"), GlbLoopMode.LOOP, PRIORITY_HIGH) {
+                it.vehicle == GlbVehicle.BOAT
+            },
+            GlbAnimState("ride", listOf("ride", "sit"), GlbLoopMode.LOOP, PRIORITY_HIGH) {
+                it.vehicle == GlbVehicle.OTHER
+            },
+            GlbAnimState("sleep", listOf("sleep", "lay", "lying"), GlbLoopMode.LOOP, PRIORITY_HIGH) {
+                it.isSleeping
+            },
             GlbAnimState("attack", listOf("attack", "hurt"), GlbLoopMode.PLAY_ONCE, PRIORITY_NORMAL) {
                 it.hurtTime > 0
             },
             GlbAnimState("swim", listOf("swim"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
-                it.isInWater
+                it.isSwimming
+            },
+            GlbAnimState("crawl", listOf("crawl"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
+                it.isCrawling && it.limbSwingAmount > POSE_MOVE_THRESHOLD
+            },
+            GlbAnimState("crawlIdle", listOf("crawl", "prone"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
+                it.isCrawling
+            },
+            GlbAnimState("climbUp", listOf("climb", "climbing"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
+                it.isClimbing && it.climbDirection > 0
+            },
+            GlbAnimState("climbDown", listOf("climb", "climbing"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
+                it.isClimbing && it.climbDirection < 0
+            },
+            GlbAnimState("climb", listOf("climb", "climbing"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
+                it.isClimbing
             },
             GlbAnimState("jump", listOf("jump"), GlbLoopMode.LOOP, PRIORITY_NORMAL) {
-                !it.onGround && !it.isInWater
+                it.vehicle == GlbVehicle.NONE && !it.onGround && !it.isInWater
             },
-            GlbAnimState("run", listOf("run", "sprint", "jog"), GlbLoopMode.LOOP, PRIORITY_LOW) {
-                it.onGround && it.isSprinting
+            GlbAnimState("sneak", listOf("sneak", "crouch", "sneaking"), GlbLoopMode.LOOP, PRIORITY_LOW) {
+                it.isCrouching && it.limbSwingAmount > POSE_MOVE_THRESHOLD
+            },
+            GlbAnimState("sneakIdle", listOf("sneak", "crouch", "sneaking"), GlbLoopMode.LOOP, PRIORITY_LOW) {
+                it.isCrouching
+            },
+            GlbAnimState("sprint", listOf("sprint", "run", "jog"), GlbLoopMode.LOOP, PRIORITY_LOW) {
+                it.isSprinting
             },
             GlbAnimState("walk", listOf("walk"), GlbLoopMode.LOOP, PRIORITY_LOW) {
-                it.onGround && it.limbSwingAmount > WALK_THRESHOLD
+                it.limbSwingAmount > WALK_THRESHOLD
             },
             GlbAnimState("idle", listOf("idle", "stand", "breathing"), GlbLoopMode.LOOP, PRIORITY_LOWEST) {
                 true

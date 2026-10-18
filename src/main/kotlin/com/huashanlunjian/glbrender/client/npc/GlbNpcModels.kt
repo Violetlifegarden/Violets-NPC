@@ -102,9 +102,14 @@ object GlbNpcModels {
             val scale = entity.config.effectiveScale(descriptor)
             val groundOffsetY = entity.config.effectiveGroundOffsetY(descriptor)
             // The renderer's entityYaw argument is always 0 (vanilla LevelRenderer hands rotation to the renderer, not
-            // the caller), so read facing off the entity: the interpolated head yaw is what the F3+B facing line uses
-            // and turns during walk + look-around, so the single-model NPC follows it.
-            val bodyYawDegrees = entity.yHeadRotO + Mth.wrapDegrees(entity.yHeadRot - entity.yHeadRotO) * partialTick
+            // the caller), so read facing off the entity. With a head bone the body follows yBodyRot and the animator
+            // turns the head toward the look direction (ArmorStand's LiveSwitched split); rigs without one keep the
+            // whole model following yHeadRot so look-around still turns them.
+            val bodyYawDegrees = if (GlbNpcAnimator.hasHeadBone(entry.anim, scene)) {
+                Mth.rotLerp(partialTick, entity.yBodyRotO, entity.yBodyRot)
+            } else {
+                Mth.rotLerp(partialTick, entity.yHeadRotO, entity.yHeadRot)
+            }
             val yawRadians =
                 Math.toRadians((180.0 - bodyYawDegrees + entity.config.effectiveYawOffset(descriptor)).toDouble()).toFloat()
             val bodyMatrix = Matrix4f()
