@@ -51,9 +51,10 @@ object GlbNpcClient {
                 }
             },
         )
-        // Per-frame maintenance before entities draw. AFTER_SKY is the earliest stage that fires exactly once per
+        // Per-frame maintenance around entity drawing. AFTER_SKY is the earliest stage that fires exactly once per
         // level-render frame and precedes entity rendering: rotate the shared renderer's ring-buffer pool (else it
         // grows unbounded -> GL_INVALID_VALUE, the Step 2 crash) and release instances of NPCs that left the level.
+        // AFTER_ENTITIES flushes the batched NPC tasks once, while the world projection/modelview are still active.
         NeoForge.EVENT_BUS.addListener(
             EventPriority.NORMAL,
             RenderLevelStageEvent::class.java,
@@ -61,6 +62,8 @@ object GlbNpcClient {
                 if (event.stage === RenderLevelStageEvent.Stage.AFTER_SKY) {
                     GlbModelRegistry.rotateForFrame()
                     GlbNpcModels.pruneRemoved()
+                } else if (event.stage === RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
+                    GlbNpcModels.executeScheduled()
                 }
             },
         )

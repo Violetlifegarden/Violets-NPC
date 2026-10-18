@@ -4,6 +4,7 @@ import com.huashanlunjian.glbrender.client.npc.anim.GlbNpcAnimator
 import com.huashanlunjian.glbrender.client.npc.anim.NpcAnimRuntime
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.mojang.logging.LogUtils
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.texture.OverlayTexture
@@ -14,6 +15,7 @@ import top.fifthlight.blazerod.gl.GpuTexture
 import top.fifthlight.blazerod.gl.TextureFormat
 import top.fifthlight.blazerod.model.rgbaFromArgb
 import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
+import top.fifthlight.blazerod.render.api.render.ScheduledRenderer
 import top.fifthlight.blazerod.render.api.render.drawScene
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import java.util.HashMap
@@ -41,6 +43,26 @@ object GlbNpcModels {
     }
 
     private val instances = HashMap<UUID, Entry>()
+
+    /** Whether [draw] queued at least one task this frame, so [executeScheduled] can skip the empty case. */
+    private var scheduledAny = false
+
+    /**
+     * Flushes the tasks queued by [draw] in one instanced pass per primitive and scene. Runs at
+     * `RenderLevelStageEvent.Stage.AFTER_ENTITIES`, where the world projection/modelview are still the ones the
+     * entity pass used (the same matrices the immediate path would have drawn with). Same-scene NPCs therefore
+     * share a pipeline bind and an instanced draw instead of one full draw per NPC.
+     */
+    fun executeScheduled() {
+        if (!scheduledAny) return
+        scheduledAny = false
+        val scheduled = GlbModelRegistry.renderer() as? ScheduledRenderer<*, *> ?: return
+        val target = Minecraft.getInstance().mainRenderTarget
+        val device = Gl.device
+        val color = GpuTexture.adopt(target.colorTextureId, TextureFormat.RGBA8)
+        val depth = GpuTexture.adopt(target.depthTextureId, TextureFormat.DEPTH24)
+        scheduled.executeTasks(device.createTextureView(color), device.createTextureView(depth))
+    }
 
     fun draw(entity: GlbNpc, partialTick: Float, packedLight: Int) {
         val modelId = entity.modelId.ifEmpty { GlbModels.defaultId } ?: return
@@ -72,17 +94,10 @@ object GlbNpcModels {
                 )
             }
             instance.updateRenderData(partialTick)
-            val minecraft = Minecraft.getInstance()
-            val target = minecraft.mainRenderTarget
-            val device = Gl.device
-            val color = GpuTexture.adopt(target.colorTextureId, TextureFormat.RGBA8)
-            val depth = GpuTexture.adopt(target.depthTextureId, TextureFormat.DEPTH24)
-            val colorView = device.createTextureView(color)
-            val depthView = device.createTextureView(depth)
 
             // RenderSystem's modelview during entity rendering is the camera rotation only (vanilla folds the
             // -camera translation into entity geometry), so place the model camera-relative like the player shim.
-            val camera = minecraft.gameRenderer.mainCamera.position
+            val camera = Minecraft.getInstance().gameRenderer.mainCamera.position
             val pos = entity.getPosition(partialTick)
             val scale = entity.config.effectiveScale(descriptor)
             val groundOffsetY = entity.config.effectiveGroundOffsetY(descriptor)
@@ -113,16 +128,32 @@ object GlbNpcModels {
                 if (entity.isInWall) 1.0f else 0.0f,
                 entity.isOnFire,
             )
-            // Per-instance color: the config's packed ARGB tint multiplies each material's base color (identity white
-            // when untinted, so the default draw is unchanged).
-            renderer.drawScene(
-                instance,
-                GlbRenderTarget(colorView, depthView),
-                bodyMatrix,
-                light,
-                overlay = overlay,
-                tint = rgbaFromArgb(entity.config.tint),
-            )
+            val tint = rgbaFromArgb(entity.config.tint)
+            // T2 batching: the shared renderer supports scheduling, which groups same-scene tasks and draws each
+            // primitive once with all instances (see executeScheduled). `renderInstanced` carries light/overlay/model
+            // matrix PER INSTANCE but has no per-instance tint, so tinted NPCs stay on the immediate single-task path
+            // rather than silently losing their tint.
+            val scheduled = renderer as? ScheduledRenderer<*, *>
+            if (scheduled != null && entity.config.tint == GlbNpcConfig.NO_TINT) {
+                scheduled.schedule(instance.createRenderTask(bodyMatrix, light, overlay, tint))
+                scheduledAny = true
+            } else {
+                val minecraft = Minecraft.getInstance()
+                val target = minecraft.mainRenderTarget
+                val device = Gl.device
+                val color = GpuTexture.adopt(target.colorTextureId, TextureFormat.RGBA8)
+                val depth = GpuTexture.adopt(target.depthTextureId, TextureFormat.DEPTH24)
+                val colorView = device.createTextureView(color)
+                val depthView = device.createTextureView(depth)
+                renderer.drawScene(
+                    instance,
+                    GlbRenderTarget(colorView, depthView),
+                    bodyMatrix,
+                    light,
+                    overlay = overlay,
+                    tint = tint,
+                )
+            }
         } catch (error: RuntimeException) {
             LOGGER.error("glbrender: npc draw failed", error)
         }
