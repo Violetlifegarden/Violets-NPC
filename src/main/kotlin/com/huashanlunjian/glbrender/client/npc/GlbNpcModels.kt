@@ -6,6 +6,7 @@ import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.mojang.logging.LogUtils
 import net.minecraft.client.Minecraft
+import net.minecraft.util.Mth
 import org.joml.Matrix4f
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTexture
@@ -36,7 +37,7 @@ object GlbNpcModels {
 
     private val instances = HashMap<UUID, Entry>()
 
-    fun draw(entity: GlbNpc, yaw: Float, partialTick: Float, packedLight: Int) {
+    fun draw(entity: GlbNpc, partialTick: Float, packedLight: Int) {
         val modelId = entity.modelId.ifEmpty { GlbModels.defaultId } ?: return
         val descriptor = GlbModels.descriptor(modelId) ?: return
         val scene = GlbModelRegistry.sceneFor(modelId) ?: return
@@ -80,7 +81,12 @@ object GlbNpcModels {
             val pos = entity.getPosition(partialTick)
             val scale = entity.config.effectiveScale(descriptor)
             val groundOffsetY = entity.config.effectiveGroundOffsetY(descriptor)
-            val yawRadians = Math.toRadians((180.0 - yaw + entity.config.effectiveYawOffset(descriptor))).toFloat()
+            // The renderer's entityYaw argument is always 0 (vanilla LevelRenderer hands rotation to the renderer, not
+            // the caller), so read facing off the entity: the interpolated head yaw is what the F3+B facing line uses
+            // and turns during walk + look-around, so the single-model NPC follows it.
+            val bodyYawDegrees = entity.yHeadRotO + Mth.wrapDegrees(entity.yHeadRot - entity.yHeadRotO) * partialTick
+            val yawRadians =
+                Math.toRadians((180.0 - bodyYawDegrees + entity.config.effectiveYawOffset(descriptor)).toDouble()).toFloat()
             val bodyMatrix = Matrix4f()
                 .translation(
                     (pos.x - camera.x).toFloat(),

@@ -16,13 +16,15 @@ class GlbNpcRenderer(context: EntityRendererProvider.Context) : EntityRenderer<G
 
     override fun render(
         entity: GlbNpc,
-        yaw: Float,
+        entityYaw: Float,
         partialTick: Float,
         poseStack: PoseStack,
         bufferSource: MultiBufferSource,
         packedLight: Int,
     ) {
-        GlbNpcModels.draw(entity, yaw, partialTick, packedLight)
+        // entityYaw is intentionally ignored: vanilla always hands the renderer 0.0F and expects it to read rotation
+        // off the entity itself (see GlbNpcModels.draw).
+        GlbNpcModels.draw(entity, partialTick, packedLight)
     }
 
     override fun getTextureLocation(entity: GlbNpc): ResourceLocation = TEXTURE
