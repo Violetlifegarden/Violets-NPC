@@ -32,6 +32,9 @@ interface GlbEditorContext {
     var wander: Boolean
     var followOwner: Boolean
 
+    /** The NPC's display name (empty = none). Backed by vanilla `Entity.customName`, not the config struct. */
+    var displayName: String
+
     /** Commit the current transform/behavior values to the server (one SetConfigPacket). */
     fun applyConfig()
 

@@ -4,6 +4,7 @@ import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.mojang.logging.LogUtils
 import net.minecraft.network.RegistryFriendlyByteBuf
+import net.minecraft.network.chat.Component
 import net.minecraft.network.codec.ByteBufCodecs
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
@@ -72,6 +73,7 @@ data class SetConfigPacket(
     val groundOffsetY: Float,
     val wander: Boolean,
     val followOwner: Boolean,
+    val name: String,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -79,14 +81,28 @@ data class SetConfigPacket(
         val TYPE: CustomPacketPayload.Type<SetConfigPacket> =
             CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath("glbrender", "set_config"))
 
-        val STREAM_CODEC: StreamCodec<RegistryFriendlyByteBuf, SetConfigPacket> = StreamCodec.composite(
-            ByteBufCodecs.VAR_INT, { it.entityId },
-            ByteBufCodecs.FLOAT, { it.scale },
-            ByteBufCodecs.FLOAT, { it.yawOffset },
-            ByteBufCodecs.FLOAT, { it.groundOffsetY },
-            ByteBufCodecs.BOOL, { it.wander },
-            ByteBufCodecs.BOOL, { it.followOwner },
-            { id, scale, yaw, ground, wander, follow -> SetConfigPacket(id, scale, yaw, ground, wander, follow) },
+        // Hand-rolled (not composite) so the field list can grow past StreamCodec.composite's arity without nesting.
+        val STREAM_CODEC: StreamCodec<RegistryFriendlyByteBuf, SetConfigPacket> = StreamCodec.of(
+            { buf, packet ->
+                buf.writeVarInt(packet.entityId)
+                buf.writeFloat(packet.scale)
+                buf.writeFloat(packet.yawOffset)
+                buf.writeFloat(packet.groundOffsetY)
+                buf.writeBoolean(packet.wander)
+                buf.writeBoolean(packet.followOwner)
+                buf.writeUtf(packet.name, MAX_NAME)
+            },
+            { buf ->
+                SetConfigPacket(
+                    buf.readVarInt(),
+                    buf.readFloat(),
+                    buf.readFloat(),
+                    buf.readFloat(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
+                    buf.readUtf(MAX_NAME),
+                )
+            },
         )
 
         fun handle(packet: SetConfigPacket, context: IPayloadContext) {
@@ -104,11 +120,16 @@ data class SetConfigPacket(
                 config.groundOffsetY = packet.groundOffsetY
                 config.wander = packet.wander
                 config.followOwner = packet.followOwner
+                // Name lives on vanilla Entity.customName (already synched + persisted), not in config. Empty clears it.
+                val name = packet.name.trim()
+                npc.setCustomName(if (name.isEmpty()) null else Component.literal(name))
+                npc.setCustomNameVisible(true)
             }
         }
 
         private const val SCALE_MIN = 0.01f
         private const val SCALE_MAX = 16.0f
+        private const val MAX_NAME = 64
     }
 }
 

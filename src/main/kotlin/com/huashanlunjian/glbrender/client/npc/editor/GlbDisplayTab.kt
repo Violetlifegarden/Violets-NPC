@@ -13,7 +13,7 @@ class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     override fun build() {
         var y = 4
         label(5, y + 5, "Name")
-        stubField(50, y, 206)
+        textField(50, y, 206, ctx.displayName) { ctx.displayName = it }
         stubCycle(305, y, 110, "Show", "Hide", "Show attacking")
         y += 23
 

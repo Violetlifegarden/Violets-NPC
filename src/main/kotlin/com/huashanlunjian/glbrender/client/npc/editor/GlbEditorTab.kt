@@ -69,6 +69,16 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         )
     }
 
+    /** Editable text field that commits its value to [assign] (then the whole config) on Enter. */
+    protected fun textField(x: Int, y: Int, w: Int, initial: String, assign: (String) -> Unit) {
+        add(
+            GlbCommitField(ctx.font(), guiLeft + x, guiTop + y, w, initial) { value ->
+                assign(value)
+                ctx.applyConfig()
+            },
+        )
+    }
+
     protected fun modelCycle(x: Int, y: Int, w: Int) {
         val options = ctx.modelIds.toTypedArray()
         val initial = options.indexOf(ctx.currentModelId()).coerceAtLeast(0)

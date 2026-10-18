@@ -52,6 +52,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var groundOffsetY: Float = 0.0f
     override var wander: Boolean = true
     override var followOwner: Boolean = false
+    override var displayName: String = menu.npc?.customName?.string ?: ""
 
     private var currentTab = TAB_DISPLAY
 
@@ -134,7 +135,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
 
     override fun applyConfig() {
         val id = npcId ?: return
-        PacketDistributor.sendToServer(SetConfigPacket(id, scale, yawOffset, groundOffsetY, wander, followOwner))
+        PacketDistributor.sendToServer(SetConfigPacket(id, scale, yawOffset, groundOffsetY, wander, followOwner, displayName))
     }
 
     override fun fmt(value: Float, decimals: Int): String =
