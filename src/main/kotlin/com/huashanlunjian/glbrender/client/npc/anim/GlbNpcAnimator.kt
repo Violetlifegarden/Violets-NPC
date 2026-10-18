@@ -185,6 +185,9 @@ object GlbNpcAnimator {
         // set to loop, so the walk->idle clip *name* change hits the restart block and re-seeks normally.
         if (previewClip == null && clips.size == 1) {
             (animState as? SimpleAnimationState)?.paused = auto?.id == "idle"
+        } else if (previewClip != null) {
+            // A preview must always advance, including on a single-clip rig whose clip idle had frozen.
+            (animState as? SimpleAnimationState)?.paused = false
         }
 
         animState.updateTime(playContext)
