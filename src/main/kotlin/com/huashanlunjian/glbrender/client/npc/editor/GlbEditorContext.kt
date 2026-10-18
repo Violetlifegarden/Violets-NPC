@@ -31,6 +31,8 @@ interface GlbEditorContext {
     var groundOffsetY: Float
     var wander: Boolean
     var followOwner: Boolean
+    var sit: Boolean
+    var lookPlayer: Boolean
     var maxHealth: Float
 
     /** Whether the NPC renders at full brightness (glow). */

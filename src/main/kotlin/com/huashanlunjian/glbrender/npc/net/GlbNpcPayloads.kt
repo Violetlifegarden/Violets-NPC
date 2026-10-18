@@ -73,6 +73,8 @@ data class SetConfigPacket(
     val groundOffsetY: Float,
     val wander: Boolean,
     val followOwner: Boolean,
+    val sit: Boolean,
+    val lookPlayer: Boolean,
     val name: String,
     val maxHealth: Float,
     val glowing: Boolean,
@@ -92,6 +94,8 @@ data class SetConfigPacket(
                 buf.writeFloat(packet.groundOffsetY)
                 buf.writeBoolean(packet.wander)
                 buf.writeBoolean(packet.followOwner)
+                buf.writeBoolean(packet.sit)
+                buf.writeBoolean(packet.lookPlayer)
                 buf.writeUtf(packet.name, MAX_NAME)
                 buf.writeFloat(packet.maxHealth)
                 buf.writeBoolean(packet.glowing)
@@ -102,6 +106,8 @@ data class SetConfigPacket(
                     buf.readFloat(),
                     buf.readFloat(),
                     buf.readFloat(),
+                    buf.readBoolean(),
+                    buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readUtf(MAX_NAME),
@@ -126,6 +132,8 @@ data class SetConfigPacket(
                 config.groundOffsetY = packet.groundOffsetY
                 config.wander = packet.wander
                 config.followOwner = packet.followOwner
+                config.sit = packet.sit
+                config.lookPlayer = packet.lookPlayer
                 // Name lives on vanilla Entity.customName (already synched + persisted), not in config. Empty clears it.
                 val name = packet.name.trim()
                 npc.setCustomName(if (name.isEmpty()) null else Component.literal(name))

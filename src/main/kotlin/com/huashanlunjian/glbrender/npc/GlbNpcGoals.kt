@@ -1,6 +1,7 @@
 package com.huashanlunjian.glbrender.npc
 
 import net.minecraft.world.entity.ai.goal.Goal
+import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal
 import net.minecraft.world.entity.player.Player
 import java.util.EnumSet
@@ -90,4 +91,33 @@ class GlbFollowPlayerGoal(private val npc: GlbNpc) : Goal() {
         private const val SPEED = 1.0
         private const val REPATH_INTERVAL = 10
     }
+}
+
+/**
+ * Holds the MOVE + JUMP goal flags while [GlbNpcConfig.sit] is on, so it outranks wander/follow (which also want MOVE)
+ * and they cannot start — the vanilla wolf `SitDownGoal` mechanism, self-gated like our other goals so toggling sit
+ * needs no selector teardown. Registered above the move goals but below `FloatGoal`, so an NPC told to sit in water
+ * still swims out.
+ */
+class GlbSitGoal(private val npc: GlbNpc) : Goal() {
+    init {
+        setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.JUMP))
+    }
+
+    override fun canUse(): Boolean = npc.config.sit
+    override fun canContinueToUse(): Boolean = npc.config.sit
+    override fun start() {
+        npc.navigation.stop()
+    }
+
+    override fun tick() {
+        // Keep navigation stopped each tick: a wander goal that started before sit was set could otherwise leave a
+        // running path. Cheaper than tearing the selector down and safe because sit outranks the move goals.
+        npc.navigation.stop()
+    }
+}
+
+/** Looks at nearby players only while [GlbNpcConfig.lookPlayer] is on (a self-gated wrapper over the vanilla goal). */
+class GlbLookPlayerGoal(private val npc: GlbNpc) : LookAtPlayerGoal(npc, Player::class.java, 8.0f) {
+    override fun canUse(): Boolean = npc.config.lookPlayer && super.canUse()
 }

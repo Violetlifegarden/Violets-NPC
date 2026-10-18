@@ -49,6 +49,16 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_FOLLOW_OWNER)
         set(value) = npc.entityData.set(DATA_FOLLOW_OWNER, value)
 
+    /** Whether the NPC is sitting: holds the MOVE/JUMP goal flags so wander/follow cannot run (TLM/CNPC sit analogue). */
+    var sit: Boolean
+        get() = npc.entityData.get(DATA_SIT)
+        set(value) = npc.entityData.set(DATA_SIT, value)
+
+    /** Whether the NPC turns to look at nearby players (gates the look-at-player goal). */
+    var lookPlayer: Boolean
+        get() = npc.entityData.get(DATA_LOOK_PLAYER)
+        set(value) = npc.entityData.set(DATA_LOOK_PLAYER, value)
+
     /**
      * Per-instance max-health override, or [Float.NaN] to inherit the entity default. The attribute itself is
      * server-only and not readable on the client's entity copy, so this synced mirror is what the editor displays;
@@ -83,6 +93,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (!groundOffsetY.isNaN()) tag.putFloat(KEY_GROUND_OFFSET_Y, groundOffsetY)
         tag.putBoolean(KEY_WANDER, wander)
         tag.putBoolean(KEY_FOLLOW_OWNER, followOwner)
+        tag.putBoolean(KEY_SIT, sit)
+        tag.putBoolean(KEY_LOOK_PLAYER, lookPlayer)
         if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
         tag.putBoolean(KEY_GLOWING, glowing)
         return tag
@@ -95,6 +107,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         groundOffsetY = if (tag.contains(KEY_GROUND_OFFSET_Y)) tag.getFloat(KEY_GROUND_OFFSET_Y) else Float.NaN
         if (tag.contains(KEY_WANDER)) wander = tag.getBoolean(KEY_WANDER)
         if (tag.contains(KEY_FOLLOW_OWNER)) followOwner = tag.getBoolean(KEY_FOLLOW_OWNER)
+        if (tag.contains(KEY_SIT)) sit = tag.getBoolean(KEY_SIT)
+        if (tag.contains(KEY_LOOK_PLAYER)) lookPlayer = tag.getBoolean(KEY_LOOK_PLAYER)
         maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
         if (tag.contains(KEY_GLOWING)) glowing = tag.getBoolean(KEY_GLOWING)
     }
@@ -112,6 +126,10 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_FOLLOW_OWNER: EntityDataAccessor<Boolean> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_SIT: EntityDataAccessor<Boolean> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_LOOK_PLAYER: EntityDataAccessor<Boolean> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_MAX_HEALTH: EntityDataAccessor<Float> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.FLOAT)
         private val DATA_GLOWING: EntityDataAccessor<Boolean> =
@@ -123,6 +141,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_GROUND_OFFSET_Y = "GlbGroundOffsetY"
         private const val KEY_WANDER = "GlbWander"
         private const val KEY_FOLLOW_OWNER = "GlbFollowOwner"
+        private const val KEY_SIT = "GlbSit"
+        private const val KEY_LOOK_PLAYER = "GlbLookPlayer"
         private const val KEY_MAX_HEALTH = "GlbMaxHealth"
         private const val KEY_GLOWING = "GlbGlowing"
 
@@ -137,6 +157,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_GROUND_OFFSET_Y, Float.NaN)
             builder.define(DATA_WANDER, true)
             builder.define(DATA_FOLLOW_OWNER, false)
+            builder.define(DATA_SIT, false)
+            builder.define(DATA_LOOK_PLAYER, true)
             builder.define(DATA_MAX_HEALTH, Float.NaN)
             builder.define(DATA_GLOWING, false)
         }

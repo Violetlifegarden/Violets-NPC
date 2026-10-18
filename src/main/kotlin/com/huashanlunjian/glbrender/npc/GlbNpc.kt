@@ -12,7 +12,6 @@ import net.minecraft.world.entity.PathfinderMob
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.goal.FloatGoal
-import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
 import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.entity.player.Player
@@ -75,10 +74,11 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
      */
     override fun registerGoals() {
         goalSelector.addGoal(0, FloatGoal(this))
-        goalSelector.addGoal(1, GlbFollowPlayerGoal(this))
-        goalSelector.addGoal(2, GlbWanderGoal(this))
-        goalSelector.addGoal(3, LookAtPlayerGoal(this, Player::class.java, 8.0f))
-        goalSelector.addGoal(4, RandomLookAroundGoal(this))
+        goalSelector.addGoal(1, GlbSitGoal(this))
+        goalSelector.addGoal(2, GlbFollowPlayerGoal(this))
+        goalSelector.addGoal(3, GlbWanderGoal(this))
+        goalSelector.addGoal(4, GlbLookPlayerGoal(this))
+        goalSelector.addGoal(5, RandomLookAroundGoal(this))
     }
 
     override fun addAdditionalSaveData(tag: CompoundTag) {

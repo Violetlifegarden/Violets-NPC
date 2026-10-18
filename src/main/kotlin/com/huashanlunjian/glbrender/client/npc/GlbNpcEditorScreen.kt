@@ -52,6 +52,8 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var groundOffsetY: Float = 0.0f
     override var wander: Boolean = true
     override var followOwner: Boolean = false
+    override var sit: Boolean = false
+    override var lookPlayer: Boolean = true
     override var maxHealth: Float = 20.0f
     override var glowing: Boolean = false
     override var displayName: String = menu.npc?.customName?.string ?: ""
@@ -78,6 +80,8 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         groundOffsetY = config?.groundOffsetY?.takeUnless { it.isNaN() } ?: d?.groundOffsetY ?: 0.0f
         wander = config?.wander ?: true
         followOwner = config?.followOwner ?: false
+        sit = config?.sit ?: false
+        lookPlayer = config?.lookPlayer ?: true
         maxHealth = config?.effectiveMaxHealth() ?: 20.0f
         glowing = config?.glowing ?: false
     }
@@ -140,7 +144,9 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override fun applyConfig() {
         val id = npcId ?: return
         PacketDistributor.sendToServer(
-            SetConfigPacket(id, scale, yawOffset, groundOffsetY, wander, followOwner, displayName, maxHealth, glowing),
+            SetConfigPacket(
+                id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, displayName, maxHealth, glowing,
+            ),
         )
     }
 

@@ -18,14 +18,17 @@ class GlbAiTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         label(5, y + 5, "Follow owner")
         toggle(86, y, 60, ctx.followOwner) { ctx.followOwner = it }
         y += 22
+        label(5, y + 5, "Sit")
+        toggle(86, y, 60, ctx.sit) { ctx.sit = it }
+        y += 22
+        label(5, y + 5, "Look player")
+        toggle(86, y, 60, ctx.lookPlayer) { ctx.lookPlayer = it }
+        y += 22
         label(5, y + 5, "Response")
         stubCycle(86, y, 60, "Retaliate", "Panic", "Retreat", "Nothing")
         y += 22
         label(5, y + 5, "Doors")
         stubCycle(86, y, 60, "Break", "Open", "Disabled")
-        y += 22
-        label(5, y + 5, "Swim")
-        stubYesNo(86, y, 60)
         y += 22
         label(5, y + 5, "Shelter")
         stubCycle(86, y, 60, "Darkness", "Sunlight", "Disabled")
