@@ -74,6 +74,7 @@ data class SetConfigPacket(
     val wander: Boolean,
     val followOwner: Boolean,
     val name: String,
+    val maxHealth: Float,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -91,6 +92,7 @@ data class SetConfigPacket(
                 buf.writeBoolean(packet.wander)
                 buf.writeBoolean(packet.followOwner)
                 buf.writeUtf(packet.name, MAX_NAME)
+                buf.writeFloat(packet.maxHealth)
             },
             { buf ->
                 SetConfigPacket(
@@ -101,6 +103,7 @@ data class SetConfigPacket(
                     buf.readBoolean(),
                     buf.readBoolean(),
                     buf.readUtf(MAX_NAME),
+                    buf.readFloat(),
                 )
             },
         )
@@ -124,12 +127,18 @@ data class SetConfigPacket(
                 val name = packet.name.trim()
                 npc.setCustomName(if (name.isEmpty()) null else Component.literal(name))
                 npc.setCustomNameVisible(true)
+                // Health: store the synced mirror, then push it onto the real (server-only) attribute.
+                config.maxHealth = if (packet.maxHealth.isNaN()) Float.NaN
+                else packet.maxHealth.coerceIn(MIN_HEALTH, MAX_HEALTH)
+                npc.applyMaxHealth()
             }
         }
 
         private const val SCALE_MIN = 0.01f
         private const val SCALE_MAX = 16.0f
         private const val MAX_NAME = 64
+        private const val MIN_HEALTH = 1.0f
+        private const val MAX_HEALTH = 512.0f
     }
 }
 

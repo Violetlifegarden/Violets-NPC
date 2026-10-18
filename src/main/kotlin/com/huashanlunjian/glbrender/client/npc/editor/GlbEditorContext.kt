@@ -31,6 +31,7 @@ interface GlbEditorContext {
     var groundOffsetY: Float
     var wander: Boolean
     var followOwner: Boolean
+    var maxHealth: Float
 
     /** The NPC's display name (empty = none). Backed by vanilla `Entity.customName`, not the config struct. */
     var displayName: String

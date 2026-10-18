@@ -49,12 +49,24 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_FOLLOW_OWNER)
         set(value) = npc.entityData.set(DATA_FOLLOW_OWNER, value)
 
+    /**
+     * Per-instance max-health override, or [Float.NaN] to inherit the entity default. The attribute itself is
+     * server-only and not readable on the client's entity copy, so this synced mirror is what the editor displays;
+     * [GlbNpc.applyMaxHealth] is what actually pushes it onto the `MAX_HEALTH` attribute on the server.
+     */
+    var maxHealth: Float
+        get() = npc.entityData.get(DATA_MAX_HEALTH)
+        set(value) = npc.entityData.set(DATA_MAX_HEALTH, value)
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
 
     fun effectiveGroundOffsetY(descriptor: GlbModelDescriptor): Float =
         groundOffsetY.takeUnless { it.isNaN() } ?: descriptor.groundOffsetY
+
+    /** The health the attribute should carry: the override, else the vanilla-mob default. */
+    fun effectiveMaxHealth(): Float = maxHealth.takeUnless { it.isNaN() } ?: DEFAULT_HEALTH
 
     fun save(tag: CompoundTag): CompoundTag {
         tag.putString(KEY_MODEL_ID, modelId)
@@ -63,6 +75,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         if (!groundOffsetY.isNaN()) tag.putFloat(KEY_GROUND_OFFSET_Y, groundOffsetY)
         tag.putBoolean(KEY_WANDER, wander)
         tag.putBoolean(KEY_FOLLOW_OWNER, followOwner)
+        if (!maxHealth.isNaN()) tag.putFloat(KEY_MAX_HEALTH, maxHealth)
         return tag
     }
 
@@ -73,6 +86,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         groundOffsetY = if (tag.contains(KEY_GROUND_OFFSET_Y)) tag.getFloat(KEY_GROUND_OFFSET_Y) else Float.NaN
         if (tag.contains(KEY_WANDER)) wander = tag.getBoolean(KEY_WANDER)
         if (tag.contains(KEY_FOLLOW_OWNER)) followOwner = tag.getBoolean(KEY_FOLLOW_OWNER)
+        maxHealth = if (tag.contains(KEY_MAX_HEALTH)) tag.getFloat(KEY_MAX_HEALTH) else Float.NaN
     }
 
     companion object {
@@ -88,6 +102,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
         private val DATA_FOLLOW_OWNER: EntityDataAccessor<Boolean> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_MAX_HEALTH: EntityDataAccessor<Float> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.FLOAT)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -95,6 +111,10 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_GROUND_OFFSET_Y = "GlbGroundOffsetY"
         private const val KEY_WANDER = "GlbWander"
         private const val KEY_FOLLOW_OWNER = "GlbFollowOwner"
+        private const val KEY_MAX_HEALTH = "GlbMaxHealth"
+
+        /** Fallback max health when no per-instance override is set (matches the vanilla mob default). */
+        const val DEFAULT_HEALTH = 20.0f
 
         /** Static so it can run from the `Entity` superclass constructor, before a [GlbNpcConfig] instance exists. */
         fun defineSynchedData(builder: SynchedEntityData.Builder) {
@@ -104,6 +124,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_GROUND_OFFSET_Y, Float.NaN)
             builder.define(DATA_WANDER, true)
             builder.define(DATA_FOLLOW_OWNER, false)
+            builder.define(DATA_MAX_HEALTH, Float.NaN)
         }
     }
 }

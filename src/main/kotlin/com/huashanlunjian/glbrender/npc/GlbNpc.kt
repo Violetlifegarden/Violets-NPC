@@ -40,9 +40,31 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
             config.modelId = value
         }
 
+    private var maxHealthApplied = false
+
     override fun defineSynchedData(builder: SynchedEntityData.Builder) {
         super.defineSynchedData(builder)
         GlbNpcConfig.defineSynchedData(builder)
+    }
+
+    override fun tick() {
+        super.tick()
+        // The MAX_HEALTH attribute is server-only and not restored from our synced mirror on world load, so apply it
+        // once on the entity's first server tick — this covers both reload-from-NBT and a fresh summon. Later edits
+        // re-apply directly from the packet handler.
+        if (!maxHealthApplied && !level().isClientSide) {
+            maxHealthApplied = true
+            applyMaxHealth()
+        }
+    }
+
+    /** Push [GlbNpcConfig.maxHealth] onto the live `MAX_HEALTH` attribute and clamp current health to the new cap. */
+    fun applyMaxHealth() {
+        if (level().isClientSide) return
+        val target = config.effectiveMaxHealth().toDouble()
+        val attribute = getAttribute(Attributes.MAX_HEALTH) ?: return
+        attribute.setBaseValue(target)
+        if (health > target) setHealth(target.toFloat())
     }
 
     /**

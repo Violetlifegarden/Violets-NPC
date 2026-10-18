@@ -1,9 +1,9 @@
 package com.huashanlunjian.glbrender.client.npc.editor
 
 /**
- * Stats tab — a faithful but non-functional replica of CustomNPC `GuiNpcStats`: the number/cycle/edit-button grid from
- * the decompile, every control a placeholder. We own none of CNPC's stat pipeline (health, aggro, resistances, …), so
- * this tab is present purely to show the surface the later feature pass will target.
+ * Stats tab — a replica of CustomNPC `GuiNpcStats`' number/cycle/edit-button grid. Only Health is functional (a real
+ * [stepper] over the synced max-health override); every other control (aggro, resistances, creature type, …) is a
+ * placeholder, since we own none of CNPC's stat pipeline yet.
  */
 class GlbStatsTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     override val title = "Stats"
@@ -11,7 +11,7 @@ class GlbStatsTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     override fun build() {
         var y = 10
         label(4, y + 5, "Health")
-        stubField(85, y, 50)
+        stepper(85, y, 60, ctx.maxHealth, HEALTH_STEP, HEALTH_MIN, HEALTH_MAX, 0) { ctx.maxHealth = it }
         label(140, y + 5, "Aggro")
         stubField(220, y, 50)
         label(275, y + 5, "Creature type")

@@ -133,5 +133,8 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         const val GROUND_STEP = 0.05f
         const val GROUND_MIN = -16.0f
         const val GROUND_MAX = 16.0f
+        const val HEALTH_STEP = 1.0f
+        const val HEALTH_MIN = 1.0f
+        const val HEALTH_MAX = 512.0f
     }
 }
