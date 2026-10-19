@@ -142,6 +142,15 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun checkDespawn() {}
 
     companion object {
+        init {
+            // Register the synced-data accessors now. SynchedEntityData sizes its per-entity id array from the
+            // registry when the Entity constructor runs, but Kotlin companions initialize lazily: without this the
+            // first touch is inside defineSynchedData, after the array was already sized, and the first NPC built in
+            // a fresh JVM (e.g. loaded from a save) throws ArrayIndexOutOfBoundsException. Class initialization runs
+            // before any constructor, so this is early enough.
+            GlbNpcConfig.ensureAccessorsRegistered()
+        }
+
         fun attributes(): AttributeSupplier.Builder =
             PathfinderMob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0)

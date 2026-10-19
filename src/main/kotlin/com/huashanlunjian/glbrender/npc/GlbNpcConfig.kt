@@ -18,6 +18,11 @@ import net.minecraft.network.syncher.SynchedEntityData
  * The [EntityDataAccessor]s and [defineSynchedData] live in the companion because Minecraft calls
  * `defineSynchedData` from the `Entity` superclass constructor, before this instance exists — so definition must be
  * static, while the get/set wrappers need the live entity.
+ *
+ * The accessors must be *registered* (their [SynchedEntityData.defineId] calls run) before the first entity is
+ * constructed: `SynchedEntityData.Builder` sizes its id array from the registry at construction, so registering from
+ * inside `defineSynchedData` is too late and indexes past the array. [GlbNpc]'s companion init calls
+ * [ensureAccessorsRegistered] during class initialization, which the JVM performs before any constructor runs.
  */
 class GlbNpcConfig(private val npc: GlbNpc) {
 
@@ -238,6 +243,12 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         // profession values (CustomNPC NpcJob vocabulary, trimmed to the professions we implement).
         const val PROFESSION_NONE = 0
         const val PROFESSION_GUARD = 1
+
+        /**
+         * Forces this companion to initialize, running the [SynchedEntityData.defineId] registrations above. Called
+         * from [GlbNpc]'s companion init; see this class's KDoc for why the timing matters.
+         */
+        fun ensureAccessorsRegistered() {}
 
         /** Static so it can run from the `Entity` superclass constructor, before a [GlbNpcConfig] instance exists. */
         fun defineSynchedData(builder: SynchedEntityData.Builder) {
