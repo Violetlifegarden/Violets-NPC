@@ -15,8 +15,8 @@ class RenderTaskImpl(
     val light: Int,
     val overlay: Int,
     val tint: RgbaColor,
-    /** Draw PBR primitives with their prebuilt non-PBR fallback material instead of the PBR shader. */
-    val useVanillaMaterial: Boolean,
+    /** One of [top.fifthlight.blazerod.render.api.resource.MaterialMode.DEFAULT], `.VANILLA` or `.UNLIT`. */
+    val materialMode: Int,
     modelMatrix: Matrix4fc,
     val localMatricesBuffer: CowBuffer<LocalMatricesBuffer>,
     val skinBuffer: List<CowBuffer<RenderSkinBuffer>>,
@@ -48,7 +48,7 @@ class TaskMap : AutoCloseable {
     private var closed = false
 
     /** An instanced pass draws one material for every instance, so the material mode is part of the batch key. */
-    private data class Key(val scene: RenderSceneImpl, val useVanillaMaterial: Boolean)
+    private data class Key(val scene: RenderSceneImpl, val materialMode: Int)
 
     private val tasks = mutableMapOf<Key, MutableList<RenderTaskImpl>>()
 
@@ -56,7 +56,7 @@ class TaskMap : AutoCloseable {
 
     fun addTask(task: RenderTaskImpl) {
         checkNotClosed()
-        tasks.getOrPut(Key(task.instance.scene, task.useVanillaMaterial)) { mutableListOf() }.add(task)
+        tasks.getOrPut(Key(task.instance.scene, task.materialMode)) { mutableListOf() }.add(task)
     }
 
     fun executeTasks(executor: (RenderSceneImpl, List<RenderTaskImpl>) -> Unit) {

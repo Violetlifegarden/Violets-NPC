@@ -84,7 +84,7 @@ data class SetConfigPacket(
     val tint: Int,
     val dialogs: String,
     val clip: String,
-    val pbr: Boolean,
+    val materialMode: Int,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -111,7 +111,7 @@ data class SetConfigPacket(
                 buf.writeInt(packet.tint)
                 buf.writeUtf(packet.dialogs, MAX_DIALOG)
                 buf.writeUtf(packet.clip, MAX_CLIP)
-                buf.writeBoolean(packet.pbr)
+                buf.writeVarInt(packet.materialMode)
             },
             { buf ->
                 SetConfigPacket(
@@ -131,7 +131,7 @@ data class SetConfigPacket(
                     buf.readInt(),
                     buf.readUtf(MAX_DIALOG),
                     buf.readUtf(MAX_CLIP),
-                    buf.readBoolean(),
+                    buf.readVarInt(),
                 )
             },
         )
@@ -175,7 +175,11 @@ data class SetConfigPacket(
                 config.tint = packet.tint
                 config.dialogs = packet.dialogs
                 config.clip = packet.clip.trim()
-                config.pbr = packet.pbr
+                // Clamp to the known shading modes so a bad client can't select an unwired index.
+                config.materialMode = packet.materialMode.coerceIn(
+                    GlbNpcConfig.MATERIAL_PBR,
+                    GlbNpcConfig.MATERIAL_UNLIT,
+                )
             }
         }
 

@@ -134,13 +134,13 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         set(value) = npc.entityData.set(DATA_CLIP, value)
 
     /**
-     * Whether PBR primitives draw with the metallic-roughness shader (true, the default) or with the prebuilt
-     * vanilla-style base-color × lightmap material (false). Only affects assets loaded with a PBR material; unlit
-     * assets look the same either way. Read per frame by [GlbNpcModels.draw], so it switches without a reload.
+     * Shading model for PBR-authored primitives: [MATERIAL_PBR] (metallic-roughness, the default),
+     * [MATERIAL_VANILLA] (base color × lightmap) or [MATERIAL_UNLIT] (pre-lighting flat look). Read per frame by
+     * [GlbNpcModels.draw], so it switches without a reload. Assets without a PBR material ignore it.
      */
-    var pbr: Boolean
-        get() = npc.entityData.get(DATA_PBR)
-        set(value) = npc.entityData.set(DATA_PBR, value)
+    var materialMode: Int
+        get() = npc.entityData.get(DATA_MATERIAL_MODE)
+        set(value) = npc.entityData.set(DATA_MATERIAL_MODE, value.coerceIn(MATERIAL_PBR, MATERIAL_UNLIT))
 
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
@@ -168,7 +168,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putInt(KEY_TINT, tint)
         tag.putString(KEY_DIALOGS, dialogs)
         tag.putString(KEY_CLIP, clip)
-        tag.putBoolean(KEY_PBR, pbr)
+        tag.putInt(KEY_MATERIAL_MODE, materialMode)
         return tag
     }
 
@@ -188,7 +188,13 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tint = if (tag.contains(KEY_TINT)) tag.getInt(KEY_TINT) else NO_TINT
         if (tag.contains(KEY_DIALOGS)) dialogs = tag.getString(KEY_DIALOGS)
         if (tag.contains(KEY_CLIP)) clip = tag.getString(KEY_CLIP)
-        if (tag.contains(KEY_PBR)) pbr = tag.getBoolean(KEY_PBR)
+        materialMode = when {
+            tag.contains(KEY_MATERIAL_MODE) -> tag.getInt(KEY_MATERIAL_MODE)
+            // Older saves only carried the PBR on/off flag: on was PBR, off was the vanilla-lit path.
+            tag.contains(KEY_PBR_LEGACY) ->
+                if (tag.getBoolean(KEY_PBR_LEGACY)) MATERIAL_PBR else MATERIAL_VANILLA
+            else -> MATERIAL_PBR
+        }
     }
 
     companion object {
@@ -222,8 +228,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
         private val DATA_CLIP: EntityDataAccessor<String> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
-        private val DATA_PBR: EntityDataAccessor<Boolean> =
-            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
+        private val DATA_MATERIAL_MODE: EntityDataAccessor<Int> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -240,7 +246,9 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_TINT = "GlbTint"
         private const val KEY_DIALOGS = "GlbDialogs"
         private const val KEY_CLIP = "GlbClip"
-        private const val KEY_PBR = "GlbPbr"
+        private const val KEY_MATERIAL_MODE = "GlbMaterialMode"
+        /** Read-only migration key from when this field was a Boolean. */
+        private const val KEY_PBR_LEGACY = "GlbPbr"
 
         /** Opaque white packed `0xAARRGGBB`: the identity for the vertex-tint multiply (no tint). */
         const val NO_TINT = -1 // 0xFFFFFFFF as a signed Int; NOT -0x1000000 (that is 0xFF000000 = opaque black)
@@ -257,6 +265,11 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         // profession values (CustomNPC NpcJob vocabulary, trimmed to the professions we implement).
         const val PROFESSION_NONE = 0
         const val PROFESSION_GUARD = 1
+
+        // Shading modes; GlbNpcModels maps these onto the render api's MaterialMode.
+        const val MATERIAL_PBR = 0
+        const val MATERIAL_VANILLA = 1
+        const val MATERIAL_UNLIT = 2
 
         /**
          * Forces this companion to initialize, running the [SynchedEntityData.defineId] registrations above. Called
@@ -281,7 +294,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_TINT, NO_TINT)
             builder.define(DATA_DIALOGS, "")
             builder.define(DATA_CLIP, "")
-            builder.define(DATA_PBR, true)
+            builder.define(DATA_MATERIAL_MODE, MATERIAL_PBR)
         }
     }
 }

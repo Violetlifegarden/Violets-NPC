@@ -17,6 +17,7 @@ import top.fifthlight.blazerod.model.rgbaFromArgb
 import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
 import top.fifthlight.blazerod.render.api.render.ScheduledRenderer
 import top.fifthlight.blazerod.render.api.render.drawScene
+import top.fifthlight.blazerod.render.api.resource.MaterialMode
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import java.util.HashMap
 import java.util.UUID
@@ -131,16 +132,20 @@ object GlbNpcModels {
             // lightmap effects, not overlay rows.)
             val overlay = OverlayTexture.pack(0.0f, entity.hurtTime > 0 || entity.deathTime > 0)
             val tint = rgbaFromArgb(entity.config.tint)
-            // PBR vs Vanilla is a per-task material choice: the primitive was built with both materials at load time,
-            // and TaskMap keys batches by this flag so an instanced pass never mixes the two.
-            val useVanillaMaterial = !entity.config.pbr
+            // The shading model is a per-task choice: each primitive was built with all three materials at load time,
+            // and TaskMap keys batches by this mode so an instanced pass never mixes them.
+            val materialMode = when (entity.config.materialMode) {
+                GlbNpcConfig.MATERIAL_VANILLA -> MaterialMode.VANILLA
+                GlbNpcConfig.MATERIAL_UNLIT -> MaterialMode.UNLIT
+                else -> MaterialMode.DEFAULT
+            }
             // T2 batching: the shared renderer supports scheduling, which groups same-scene tasks and draws each
             // primitive once with all instances (see executeScheduled). `renderInstanced` carries light/overlay/model
             // matrix PER INSTANCE but has no per-instance tint, so tinted NPCs stay on the immediate single-task path
             // rather than silently losing their tint.
             val scheduled = renderer as? ScheduledRenderer<*, *>
             if (scheduled != null && entity.config.tint == GlbNpcConfig.NO_TINT) {
-                scheduled.schedule(instance.createRenderTask(bodyMatrix, light, overlay, tint, useVanillaMaterial))
+                scheduled.schedule(instance.createRenderTask(bodyMatrix, light, overlay, tint, materialMode))
                 scheduledAny = true
             } else {
                 val minecraft = Minecraft.getInstance()
@@ -157,7 +162,7 @@ object GlbNpcModels {
                     light,
                     overlay = overlay,
                     tint = tint,
-                    useVanillaMaterial = useVanillaMaterial,
+                    materialMode = materialMode,
                 )
             }
         } catch (error: RuntimeException) {

@@ -229,7 +229,7 @@ class ModelInstanceImpl(
         light: Int,
         overlay: Int,
         tint: RgbaColor,
-        useVanillaMaterial: Boolean,
+        materialMode: Int,
     ): RenderTaskImpl {
         return RenderTaskImpl(
             instance = this,
@@ -237,7 +237,7 @@ class ModelInstanceImpl(
             light = light,
             overlay = overlay,
             tint = tint,
-            useVanillaMaterial = useVanillaMaterial,
+            materialMode = materialMode,
             localMatricesBuffer = modelData.localMatricesBuffer.copy(),
             skinBuffer = modelData.skinBuffers.copy(),
             morphTargetBuffer = modelData.targetBuffers.copy().also { buffer ->

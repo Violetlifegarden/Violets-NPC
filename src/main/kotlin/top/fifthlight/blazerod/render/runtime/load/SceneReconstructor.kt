@@ -43,6 +43,22 @@ class SceneReconstructor private constructor(private val info: GpuLoadModelLoadI
         morphed = materialLoadInfo.morphed,
     )
 
+    /**
+     * Flat pre-lighting fallback for a PBR primitive. Built with the NORMAL-inclusive layout because that is how the
+     * shared vertex buffer is laid out; the unlit shader simply ignores the extra attribute.
+     */
+    private suspend fun loadUnlitAlternative(materialLoadInfo: MaterialLoadInfo.Pbr) = RenderMaterial.Unlit(
+        name = materialLoadInfo.name,
+        baseColor = materialLoadInfo.baseColor,
+        baseColorTexture = loadTexture(materialLoadInfo.baseColorTexture),
+        alphaMode = materialLoadInfo.alphaMode,
+        alphaCutoff = materialLoadInfo.alphaCutoff,
+        doubleSided = materialLoadInfo.doubleSided,
+        skinned = materialLoadInfo.skinned,
+        morphed = materialLoadInfo.morphed,
+        normalLayout = true,
+    )
+
     private suspend fun loadMaterial(materialLoadInfo: MaterialLoadInfo) = when (materialLoadInfo) {
         is MaterialLoadInfo.Pbr -> RenderMaterial.Pbr(
             name = materialLoadInfo.name,
@@ -111,6 +127,9 @@ class SceneReconstructor private constructor(private val info: GpuLoadModelLoadI
                     val vanillaMaterial = (materialInfo as? MaterialLoadInfo.Pbr)?.let {
                         loadVanillaAlternative(it)
                     }
+                    val unlitMaterial = (materialInfo as? MaterialLoadInfo.Pbr)?.let {
+                        loadUnlitAlternative(it)
+                    }
                     val targets =
                         primitiveInfo.morphedPrimitiveIndex?.let { index -> info.morphTargetInfos[index].await() }
                     PrimitiveComponent(
@@ -123,6 +142,7 @@ class SceneReconstructor private constructor(private val info: GpuLoadModelLoadI
                             indexBuffer = indexBuffer,
                             material = material,
                             vanillaMaterial = vanillaMaterial,
+                            unlitMaterial = unlitMaterial,
                             targets = targets?.let {
                                 RenderPrimitive.Targets(
                                     position = it.position,

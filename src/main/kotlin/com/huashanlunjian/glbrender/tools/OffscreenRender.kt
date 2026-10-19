@@ -32,6 +32,7 @@ import top.fifthlight.blazerod.render.api.loader.ModelLoader
 import top.fifthlight.blazerod.render.api.render.RendererTypeHolder
 import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
 import top.fifthlight.blazerod.render.api.render.drawScene
+import top.fifthlight.blazerod.render.api.resource.MaterialMode
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import top.fifthlight.blazerod.render.api.resource.RenderScene
 import top.fifthlight.blazerod.render.runtime.animation.AnimationChannelItem
@@ -62,8 +63,12 @@ fun main(args: Array<String>) {
     val outputPath = Path.of(args.getOrNull(1) ?: "build/offscreen-render.png")
     val clipName = args.getOrNull(2)
     val clipTime = args.getOrNull(3)?.toFloatOrNull() ?: 0f
-    // Optional material-mode probe: draw PBR primitives with their vanilla-style fallback material.
-    val useVanillaMaterial = args.getOrNull(4)?.toBoolean() ?: false
+    // Optional material-mode probe: "vanilla" or "unlit" draws PBR primitives with that fallback material.
+    val materialMode = when (args.getOrNull(4)?.lowercase()) {
+        "vanilla" -> MaterialMode.VANILLA
+        "unlit" -> MaterialMode.UNLIT
+        else -> MaterialMode.DEFAULT
+    }
     val size = 512
 
     GLFWErrorCallback.createPrint(System.err).set()
@@ -88,7 +93,7 @@ fun main(args: Array<String>) {
     try {
         runBlocking {
             CoroutineScope(glDispatcher).async {
-                render(window, modelPath, outputPath, size, clipName, clipTime, useVanillaMaterial)
+                render(window, modelPath, outputPath, size, clipName, clipTime, materialMode)
             }.await()
         }
     } finally {
@@ -107,7 +112,7 @@ private suspend fun render(
     size: Int,
     clipName: String?,
     clipTime: Float,
-    useVanillaMaterial: Boolean,
+    materialMode: Int,
 ) = coroutineScope {
     GLFW.glfwMakeContextCurrent(window)
     GL.createCapabilities()
@@ -232,7 +237,7 @@ private suspend fun render(
         GlbRenderTarget(colorView, depthView),
         Matrix4f(),
         FULL_BRIGHT,
-        useVanillaMaterial = useVanillaMaterial,
+        materialMode = materialMode,
     )
     GL11.glFinish()
 

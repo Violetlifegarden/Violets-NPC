@@ -3,6 +3,7 @@ package top.fifthlight.blazerod.render.runtime.resource
 import top.fifthlight.blazerod.gl.GpuBuffer
 import top.fifthlight.blazerod.render.format.GlbPrimitiveMode
 import top.fifthlight.blazerod.render.common.resource.MorphTargetGroup
+import top.fifthlight.blazerod.render.api.resource.MaterialMode
 import top.fifthlight.blazerod.render.common.util.refcount.AbstractRefCount
 import top.fifthlight.blazerod.render.render.GpuIndexBuffer
 import top.fifthlight.blazerod.render.render.RefCountedGpuBuffer
@@ -16,11 +17,13 @@ class RenderPrimitive(
     val indexBuffer: GpuIndexBuffer?,
     val material: RenderMaterial<*>,
     /**
-     * An alternative non-PBR material for the same primitive, built at load time from the PBR description.
+     * Alternative vanilla-lit material for the same primitive, built at load time from the PBR description.
      * PBR and Vanilla share the NORMAL-inclusive vertex format, so a task can swap between them at draw time
      * without rebuilding vertex data. Null for primitives whose primary material is not PBR.
      */
     val vanillaMaterial: RenderMaterial<*>? = null,
+    /** Flat (unlit) alternative for a PBR primitive: the pre-lighting appearance, still using the same vertex data. */
+    val unlitMaterial: RenderMaterial<*>? = null,
     val targets: Targets?,
     val targetGroups: List<MorphTargetGroup>,
 ) : AbstractRefCount() {
@@ -32,6 +35,7 @@ class RenderPrimitive(
         indexBuffer?.increaseReferenceCount()
         material.increaseReferenceCount()
         vanillaMaterial?.increaseReferenceCount()
+        unlitMaterial?.increaseReferenceCount()
         if (targetGroups.isEmpty()) {
             require(targets == null) { "Empty target groups with non-empty targets" }
         } else {
@@ -42,9 +46,12 @@ class RenderPrimitive(
     val gpuComplete = gpuVertexBuffer != null && targets?.gpuComplete != false
     val cpuComplete = cpuVertexBuffer != null && targets?.cpuComplete != false
 
-    /** The material a task draws with: the Vanilla alternative when requested, else the primitive's own. */
-    fun materialFor(useVanillaMaterial: Boolean): RenderMaterial<*> =
-        if (useVanillaMaterial) vanillaMaterial ?: material else material
+    /** The material a task draws with for the requested mode, falling back to the primitive's own material. */
+    fun materialFor(materialMode: Int): RenderMaterial<*> = when (materialMode) {
+        MaterialMode.UNLIT -> unlitMaterial ?: material
+        MaterialMode.VANILLA -> vanillaMaterial ?: material
+        else -> material
+    }
 
     class Target(
         val gpuBuffer: GpuBuffer?,
@@ -82,6 +89,7 @@ class RenderPrimitive(
         indexBuffer?.decreaseReferenceCount()
         material.decreaseReferenceCount()
         vanillaMaterial?.decreaseReferenceCount()
+        unlitMaterial?.decreaseReferenceCount()
         targets?.apply {
             position.close()
             color.close()

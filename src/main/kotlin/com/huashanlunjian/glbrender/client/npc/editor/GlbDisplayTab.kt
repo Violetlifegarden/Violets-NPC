@@ -6,9 +6,9 @@ import java.util.Locale
 /**
  * Display tab — CustomNPC `GuiNpcDisplay` shape (9-row column, +23px pitch). We do not render skins/capes/overlays, so
  * those rows are replicated as empty placeholder controls; only the rows backed by real features are wired:
- * [modelCycle] (our GLB model id) and the scale/yaw/ground [stepper]s (our per-instance transform overrides). The
- * CNPC "size" field becomes our scale stepper, and yaw/ground — which CNPC has no equivalent for — take two of the
- * rows we would otherwise leave as texture/cape placeholders.
+ * [modelCycle] (our GLB model id), the scale/yaw/ground [stepper]s (our per-instance transform overrides) and the
+ * PBR/Vanilla/Unlit shading cycle. The CNPC "size" field becomes our scale stepper, and yaw/ground/shading — which
+ * CNPC has no equivalent for — take rows we would otherwise leave as texture/cape placeholders.
  */
 class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     override val title = "Display"
@@ -31,14 +31,16 @@ class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         modelCycle(50, y, 150)
         label(210, y + 5, "Size")
         stepper(240, y, 90, ctx.scale, SCALE_STEP, SCALE_MIN, SCALE_MAX, 2) { ctx.scale = it }
-        // Real: pick the metallic-roughness PBR shader (Yes) or the vanilla-style shading path (No) per NPC.
-        label(336, y + 5, "PBR")
-        toggle(362, y, 40, ctx.pbr) { ctx.pbr = it }
         y += 23
 
-        // Real: yaw / ground-offset overrides (no CNPC counterpart).
+        // Real: yaw / ground-offset overrides (no CNPC counterpart), plus the per-NPC shading model.
         label(5, y + 5, "Yaw")
         stepper(50, y, 90, ctx.yawOffset, YAW_STEP, YAW_MIN, YAW_MAX, 1) { ctx.yawOffset = it }
+        label(160, y + 5, "Shading")
+        // PBR = metallic-roughness, Vanilla = base color x lightmap, Unlit = pre-lighting flat look.
+        cycleOption(215, y, 110, SHADING_NAMES, SHADING_MODE.indexOf(ctx.materialMode)) { index ->
+            ctx.materialMode = SHADING_MODE[index]
+        }
         y += 23
 
         label(5, y + 5, "Ground")
@@ -63,6 +65,13 @@ class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     }
 
     private companion object {
+        val SHADING_NAMES = arrayOf("PBR", "Vanilla", "Unlit")
+        val SHADING_MODE = intArrayOf(
+            GlbNpcConfig.MATERIAL_PBR,
+            GlbNpcConfig.MATERIAL_VANILLA,
+            GlbNpcConfig.MATERIAL_UNLIT,
+        )
+
         /** Display a tint as 6 hex digits (RGB); the opaque-white default shows as blank = "no tint". */
         fun tintToHex(tint: Int): String =
             if (tint == GlbNpcConfig.NO_TINT) "" else String.format(Locale.ROOT, "%06X", tint and 0xFFFFFF)

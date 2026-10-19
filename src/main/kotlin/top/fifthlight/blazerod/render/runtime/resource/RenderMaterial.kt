@@ -102,29 +102,42 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
         override val doubleSided: Boolean = false,
         override val skinned: Boolean = false,
         override val morphed: Boolean = false,
-    ) : RenderMaterial<Unlit.Descriptor>() {
+        /**
+         * Use the NORMAL-inclusive vertex layouts. Needed when the shader ignores lighting but the vertex buffer
+         * was laid out for a PBR material, since the two layouts differ in stride for skinned meshes.
+         */
+        val normalLayout: Boolean = false,
+    ) : RenderMaterial<RenderMaterial.Descriptor>() {
         init {
             baseColorTexture.increaseReferenceCount()
         }
 
-        override val descriptor
-            get() = Descriptor
+        override val descriptor: RenderMaterial.Descriptor
+            get() = if (normalLayout) NormalLayoutDescriptor else Descriptor
 
         override val vertexFormat: GlbVertexFormat
-            get() = if (skinned) {
-                GlbVertexFormats.POSITION_COLOR_TEXTURE_JOINT_WEIGHT
-            } else {
-                GlbVertexFormats.POSITION_COLOR_TEXTURE
+            get() = when {
+                normalLayout && skinned -> GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
+                normalLayout -> GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
+                skinned -> GlbVertexFormats.POSITION_COLOR_TEXTURE_JOINT_WEIGHT
+                else -> GlbVertexFormats.POSITION_COLOR_TEXTURE
             }
 
         override fun onClosed() {
             baseColorTexture.decreaseReferenceCount()
         }
 
-        companion object Descriptor : RenderMaterial.Descriptor(
-            id = 0,
-            name = "unlit",
-        )
+        companion object {
+            object Descriptor : RenderMaterial.Descriptor(
+                id = 0,
+                name = "unlit",
+            )
+
+            object NormalLayoutDescriptor : RenderMaterial.Descriptor(
+                id = 3,
+                name = "unlit_normals",
+            )
+        }
     }
 
 
