@@ -5,25 +5,43 @@ import com.huashanlunjian.glbrender.client.npc.anim.NpcAnimRuntime
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
+import com.mojang.blaze3d.vertex.PoseStack
 import com.mojang.logging.LogUtils
 import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.util.Mth
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.entity.HumanoidArm
+import net.minecraft.world.item.ItemDisplayContext
+import net.minecraft.world.item.ItemStack
+import org.joml.Matrix3f
 import org.joml.Matrix4f
+import org.joml.Quaternionf
+import org.joml.Vector3f
 import top.fifthlight.blazerod.gl.Gl
 import top.fifthlight.blazerod.gl.GpuTexture
 import top.fifthlight.blazerod.gl.TextureFormat
+import top.fifthlight.blazerod.model.HumanoidTag
 import top.fifthlight.blazerod.model.rgbaFromArgb
 import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
 import top.fifthlight.blazerod.render.api.render.ScheduledRenderer
 import top.fifthlight.blazerod.render.api.render.drawScene
 import top.fifthlight.blazerod.render.api.resource.MaterialMode
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
+import top.fifthlight.blazerod.render.api.resource.RenderScene
 import java.util.HashMap
 import java.util.UUID
 
 /** LightTexture.FULL_BRIGHT, redefined so we don't pull the client class in for the glow light arg. */
 private const val FULL_BRIGHT = 15728880
+
+/** Held-item placement, matching ArmorStand's defaults (and the player shim's): face the hand down, turn the item
+ *  around, and shrink it slightly so a vanilla item reads at GLB-hand proportions. */
+private const val HELD_ITEM_SCALE = 0.9f
+private const val HELD_ITEM_ROT_X = -90f
+private const val HELD_ITEM_ROT_Y = 180f
+private const val HELD_ITEM_ROT_Z = 0f
 
 /**
  * Renderer-side glue for the NPC draw: it owns the per-entity [ModelInstance] and the camera-relative body matrix,
@@ -65,7 +83,13 @@ object GlbNpcModels {
         scheduled.executeTasks(device.createTextureView(color), device.createTextureView(depth))
     }
 
-    fun draw(entity: GlbNpc, partialTick: Float, packedLight: Int) {
+    fun draw(
+        entity: GlbNpc,
+        partialTick: Float,
+        packedLight: Int,
+        poseStack: PoseStack,
+        bufferSource: MultiBufferSource,
+    ) {
         val modelId = entity.modelId.ifEmpty { GlbModels.defaultId } ?: return
         val descriptor = GlbModels.descriptor(modelId) ?: return
         val scene = GlbModelRegistry.sceneFor(modelId) ?: return
@@ -165,9 +189,96 @@ object GlbNpcModels {
                     materialMode = materialMode,
                 )
             }
+
+            // Held items go through vanilla's item renderer at the animated hand bones. They are drawn now (entity
+            // pass, into the level's buffer source) rather than with the model task: the depth buffer already holds
+            // them when the scheduled model draw runs at AFTER_ENTITIES, so occlusion is correct either way.
+            renderHeldItems(entity, instance, scene, bodyMatrix, poseStack, bufferSource, light)
         } catch (error: RuntimeException) {
             LOGGER.error("glbrender: npc draw failed", error)
         }
+    }
+
+    // Scratch matrices for the held-item pass; reused every frame to avoid per-draw allocation.
+    private val handWorldMatrix = Matrix4f()
+    private val handWorldPos = Vector3f()
+    private val handWorldRot = Quaternionf()
+    private val itemLocalMatrix = Matrix4f()
+    private val itemNormalMatrix = Matrix3f()
+
+    /**
+     * Draws the NPC's main- and off-hand items, the same composition the player shim uses (ported from ArmorStand's
+     * `PlayerRenderer.renderHeldItem`): body placement (already camera-relative) -> scene render transform -> hand
+     * bone rotation/translation -> item rotation -> uniform item scale. Only the bone's rotation and translation are
+     * taken, so a bone's baked scale does not stretch the item.
+     */
+    private fun renderHeldItems(
+        entity: GlbNpc,
+        instance: ModelInstance,
+        scene: RenderScene,
+        bodyMatrix: Matrix4f,
+        poseStack: PoseStack,
+        bufferSource: MultiBufferSource,
+        light: Int,
+    ) {
+        val mainIsRight = entity.mainArm == HumanoidArm.RIGHT
+        val mainHand = entity.getItemInHand(InteractionHand.MAIN_HAND)
+        val offHand = entity.getItemInHand(InteractionHand.OFF_HAND)
+        renderHeldItem(
+            entity, instance, scene,
+            if (mainIsRight) mainHand else offHand,
+            ItemDisplayContext.THIRD_PERSON_RIGHT_HAND, HumanoidTag.RIGHT_HAND,
+            bodyMatrix, poseStack, bufferSource, light, false,
+        )
+        renderHeldItem(
+            entity, instance, scene,
+            if (mainIsRight) offHand else mainHand,
+            ItemDisplayContext.THIRD_PERSON_LEFT_HAND, HumanoidTag.LEFT_HAND,
+            bodyMatrix, poseStack, bufferSource, light, true,
+        )
+    }
+
+    private fun renderHeldItem(
+        entity: GlbNpc,
+        instance: ModelInstance,
+        scene: RenderScene,
+        itemStack: ItemStack,
+        displayContext: ItemDisplayContext,
+        tag: HumanoidTag,
+        bodyMatrix: Matrix4f,
+        poseStack: PoseStack,
+        bufferSource: MultiBufferSource,
+        light: Int,
+        leftHanded: Boolean,
+    ) {
+        if (itemStack.isEmpty) return
+        // Rigs without a resolvable hand bone (no humanoid tag, VRM/PMX name, or Mixamo name) cannot hold items.
+        val nodeIndex = GlbNpcAnimator.resolveBone(scene, tag) ?: return
+        instance.copyNodeWorldTransform(nodeIndex, handWorldMatrix)
+        handWorldMatrix.getTranslation(handWorldPos)
+        handWorldMatrix.getUnnormalizedRotation(handWorldRot)
+        handWorldRot.normalize()
+
+        itemLocalMatrix.set(bodyMatrix)
+        scene.renderTransform?.applyOnMatrix(itemLocalMatrix)
+        itemLocalMatrix.translationRotate(
+            handWorldPos.x, handWorldPos.y, handWorldPos.z,
+            handWorldRot.x, handWorldRot.y, handWorldRot.z, handWorldRot.w,
+        )
+        itemLocalMatrix.rotateX(Math.toRadians(HELD_ITEM_ROT_X.toDouble()).toFloat())
+        itemLocalMatrix.rotateY(Math.toRadians(HELD_ITEM_ROT_Y.toDouble()).toFloat())
+        itemLocalMatrix.rotateZ(Math.toRadians(HELD_ITEM_ROT_Z.toDouble()).toFloat())
+        itemLocalMatrix.scale(HELD_ITEM_SCALE)
+
+        poseStack.pushPose()
+        val pose = poseStack.last().pose()
+        pose.set(itemLocalMatrix)
+        poseStack.last().normal().set(itemNormalMatrix.set(pose).invert().transpose())
+        Minecraft.getInstance().itemRenderer.renderStatic(
+            entity, itemStack, displayContext, leftHanded,
+            poseStack, bufferSource, entity.level(), light, OverlayTexture.NO_OVERLAY, entity.id,
+        )
+        poseStack.popPose()
     }
 
     /**

@@ -25,7 +25,7 @@ class GlbNpcRenderer(context: EntityRendererProvider.Context) : EntityRenderer<G
     ) {
         // entityYaw is intentionally ignored: vanilla always hands the renderer 0.0F and expects it to read rotation
         // off the entity itself (see GlbNpcModels.draw).
-        GlbNpcModels.draw(entity, partialTick, packedLight)
+        GlbNpcModels.draw(entity, partialTick, packedLight, poseStack, bufferSource)
         // EntityRenderer.render's whole body is leash forwarding + shouldShowName/renderNameTag, so skipping it (as a
         // pure GLB renderer naturally would) silently drops the name tag. Call it after the model so the name tag
         // composites on top; the poseStack is already positioned at the entity by EntityRenderDispatcher.

@@ -513,7 +513,7 @@ object GlbNpcAnimator {
      * Resolves a humanoid bone for rigs that do not carry GLB humanoid tags: humanoid tag first, then VRM/PMX bone
      * names, then the Mixamo naming scheme (`mixamorig:Head` etc.).
      */
-    private fun resolveBone(scene: RenderScene, tag: HumanoidTag): Int? {
+    fun resolveBone(scene: RenderScene, tag: HumanoidTag): Int? {
         scene.humanoidTagMap[tag]?.let { return it.nodeIndex }
         tag.vrmName?.let { scene.nodeNameMap[it] }?.let { return it.nodeIndex }
         tag.pmxEnglish?.let { scene.nodeNameMap[it] }?.let { return it.nodeIndex }
