@@ -64,6 +64,9 @@ interface GlbEditorContext {
     /** The clip names the NPC's current model carries, for the preview cycle (empty while the scene loads). */
     fun clipNames(): List<String>
 
+    /** Opens the standalone model/animation preview for the NPC's current model; the editor returns on close. */
+    fun openPreview()
+
     /** The NPC's display name (empty = none). Backed by vanilla `Entity.customName`, not the config struct. */
     var displayName: String
 

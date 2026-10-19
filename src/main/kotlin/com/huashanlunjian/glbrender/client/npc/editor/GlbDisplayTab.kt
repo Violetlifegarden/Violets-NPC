@@ -26,11 +26,12 @@ class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         label(158, y + 5, "hex, empty = none")
         y += 23
 
-        // Real: model picker + scale.
+        // Real: model picker + scale, plus the entry into the standalone model/animation preview.
         label(5, y + 5, "Model")
         modelCycle(50, y, 150)
         label(210, y + 5, "Size")
         stepper(240, y, 90, ctx.scale, SCALE_STEP, SCALE_MIN, SCALE_MAX, 2) { ctx.scale = it }
+        button(338, y, 74, "Preview") { ctx.openPreview() }
         y += 23
 
         // Real: yaw / ground-offset overrides (no CNPC counterpart), plus the per-NPC shading model.

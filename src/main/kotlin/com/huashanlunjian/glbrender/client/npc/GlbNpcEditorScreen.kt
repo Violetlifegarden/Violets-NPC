@@ -9,6 +9,7 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbGlobalTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbInventoryTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
+import com.huashanlunjian.glbrender.client.npc.preview.GlbPreviewScreen
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
@@ -37,8 +38,8 @@ import java.util.Locale
  * [AbstractContainerScreen] over [GlbNpcMenu] so the server-side `stillValid` gate and the editing-session close
  * keep working — the container draws no slots here.
  */
-class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
-    AbstractContainerScreen<GlbNpcMenu>(menu, inv, title), GlbEditorContext {
+class GlbNpcEditorScreen(menu: GlbNpcMenu, private val editorInventory: Inventory, title: Component) :
+    AbstractContainerScreen<GlbNpcMenu>(menu, editorInventory, title), GlbEditorContext {
 
     override val npcId: Int? = menu.npc?.id
     override val modelIds: List<String> = GlbModels.ids()
@@ -67,6 +68,13 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var displayName: String = menu.npc?.customName?.string ?: ""
 
     private var currentTab = TAB_DISPLAY
+
+    /**
+     * Set while switching to the preview: `Minecraft.setScreen` calls [removed], and the base implementation is what
+     * ends the server-side editing session. Suppressing it once keeps the menu and its session alive so the preview
+     * can hand back to a rebuilt editor over the same menu.
+     */
+    private var keepMenuOnClose = false
 
     private val tabs: List<GlbEditorTab> = listOf(
         GlbDisplayTab(this), GlbStatsTab(this), GlbAiTab(this),
@@ -156,6 +164,26 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override fun clipNames(): List<String> {
         val id = currentModelId().ifEmpty { GlbModels.defaultId ?: return emptyList() }
         return GlbModelRegistry.clipsFor(id)?.mapNotNull { it.name } ?: emptyList()
+    }
+
+    override fun openPreview() {
+        val id = currentModelId().ifEmpty { GlbModels.defaultId ?: return }
+        keepMenuOnClose = true
+        minecraft?.setScreen(
+            GlbPreviewScreen(menu.npc, id, clip, menu.npc?.bbHeight ?: 1.8f) {
+                // Rebuild the editor over the same menu (and the same still-open server session) on the way back;
+                // if the NPC despawned in the meantime, closing to the game is the only safe destination.
+                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title) else null
+            },
+        )
+    }
+
+    override fun removed() {
+        if (keepMenuOnClose) {
+            keepMenuOnClose = false
+            return
+        }
+        super.removed()
     }
 
     override fun applyModel(modelId: String) {

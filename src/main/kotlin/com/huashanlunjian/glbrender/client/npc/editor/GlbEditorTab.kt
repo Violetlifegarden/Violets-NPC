@@ -112,6 +112,11 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         )
     }
 
+    /** A real button that runs [onPress]; unlike [stubButton] it is backed by an actual action. */
+    protected fun button(x: Int, y: Int, w: Int, text: String, onPress: () -> Unit) {
+        add(Button.builder(Component.literal(text)) { onPress() }.bounds(guiLeft + x, guiTop + y, w, 20).build())
+    }
+
     // --- placeholder controls (CNPC buttons we do not implement) ---
 
     protected fun stubButton(x: Int, y: Int, w: Int, text: String) {
