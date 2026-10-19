@@ -32,10 +32,12 @@ import top.fifthlight.blazerod.render.runtime.animation.AnimationItemImpl
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.tan
 
 /**
- * The standalone model/animation preview: a 180x180 offscreen viewport on the left (drag to orbit, wheel to
- * zoom) and every clip the model carries as a clickable list on the right, with play/pause and restart.
+ * The standalone model/animation preview: a 180x180 offscreen viewport on the left (left drag to orbit, right
+ * drag to pan, wheel to zoom, Reset to restore the default framing) and every clip the model carries as a
+ * clickable list on the right, with play/pause and restart.
  *
  * A dedicated screen rather than an editor tab because the editor is already at CNPC's 420x200 with six tabs;
  * this one is where the render-tuning work will grow. It is opened from the Display tab and reconstructed back
@@ -77,10 +79,14 @@ class GlbPreviewScreen(
     private var elapsedSeconds = 0f
     private val clock = PreviewClock()
 
-    private var orbitYaw = 180f
-    private var orbitPitch = 8f
+    private var orbitYaw = DEFAULT_YAW
+    private var orbitPitch = DEFAULT_PITCH
     private var zoom = 1f
-    private var dragging = false
+    private var panX = 0f
+    private var panY = 0f
+    private var dragButton = -1
+    // Fed from drawModel so the pan rate matches this frame's zoom/scale instead of guessing at it.
+    private var cameraDistance = 1f
 
     private lateinit var playButton: Button
 
@@ -92,12 +98,17 @@ class GlbPreviewScreen(
         top = (height - PANEL_H) / 2
         playButton = addRenderableWidget(
             Button.builder(Component.literal("Pause")) { togglePlay() }
-                .bounds(left + LIST_X, top + BUTTON_Y, 64, BUTTON_H)
+                .bounds(left + LIST_X, top + BUTTON_Y, BUTTON_W, BUTTON_H)
                 .build(),
         )
         addRenderableWidget(
             Button.builder(Component.literal("Restart")) { restart() }
-                .bounds(left + LIST_X + 70, top + BUTTON_Y, 70, BUTTON_H)
+                .bounds(left + LIST_X + (BUTTON_W + BUTTON_GAP), top + BUTTON_Y, BUTTON_W, BUTTON_H)
+                .build(),
+        )
+        addRenderableWidget(
+            Button.builder(Component.literal("Reset")) { resetView() }
+                .bounds(left + LIST_X + 2 * (BUTTON_W + BUTTON_GAP), top + BUTTON_Y, BUTTON_W, BUTTON_H)
                 .build(),
         )
         syncRows()
@@ -175,6 +186,15 @@ class GlbPreviewScreen(
         selectInstancePose()
     }
 
+    /** Puts the camera back at the default framing; the pose is left alone. */
+    private fun resetView() {
+        orbitYaw = DEFAULT_YAW
+        orbitPitch = DEFAULT_PITCH
+        zoom = 1f
+        panX = 0f
+        panY = 0f
+    }
+
     private fun advanceClock() {
         val now = Util.getMillis()
         if (lastMillis == 0L) {
@@ -219,13 +239,19 @@ class GlbPreviewScreen(
 
         val centerY = (bodyHeight * 0.5f + groundOffsetY) * scale
         val distance = bodyHeight * scale * CAMERA_DISTANCE_FACTOR * zoom
+        cameraDistance = distance
         val yaw = Math.toRadians(orbitYaw.toDouble()).toFloat()
         val pitch = Math.toRadians(orbitPitch.toDouble()).toFloat()
+        // The orbit target is pan-offset along the camera's own right axis (yaw-only) and world up, so the
+        // grab-pan follows the cursor no matter how far the model has been rotated.
+        val targetX = panX * cos(yaw)
+        val targetY = centerY + panY
+        val targetZ = -panX * sin(yaw)
         val view = Matrix4f().lookAt(
-            (sin(yaw) * cos(pitch) * distance).toFloat(),
-            (centerY + sin(pitch) * distance).toFloat(),
-            (cos(yaw) * cos(pitch) * distance).toFloat(),
-            0f, centerY, 0f,
+            (targetX + sin(yaw) * cos(pitch) * distance).toFloat(),
+            (targetY + sin(pitch) * distance).toFloat(),
+            (targetZ + cos(yaw) * cos(pitch) * distance).toFloat(),
+            targetX, targetY, targetZ,
             0f, 1f, 0f,
         )
 
@@ -329,7 +355,7 @@ class GlbPreviewScreen(
         } else {
             ""
         }
-        g.drawString(font, text, left + LIST_X + 150, top + BUTTON_Y + 5, COLOR_DIM, false)
+        g.drawString(font, text, left + VIEW_X + 2, top + BUTTON_Y + 5, COLOR_DIM, false)
     }
 
     /**
@@ -364,7 +390,7 @@ class GlbPreviewScreen(
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
         if (button == LEFT_BUTTON) {
             if (insideViewport(mouseX, mouseY)) {
-                dragging = true
+                dragButton = LEFT_BUTTON
                 return true
             }
             if (insideList(mouseX, mouseY)) {
@@ -374,23 +400,38 @@ class GlbPreviewScreen(
                     return true
                 }
             }
+        } else if (button == RIGHT_BUTTON && insideViewport(mouseX, mouseY)) {
+            dragButton = RIGHT_BUTTON
+            return true
         }
         return super.mouseClicked(mouseX, mouseY, button)
     }
 
     override fun mouseReleased(mouseX: Double, mouseY: Double, button: Int): Boolean {
-        if (button == LEFT_BUTTON) dragging = false
+        if (button == dragButton) dragButton = -1
         return super.mouseReleased(mouseX, mouseY, button)
     }
 
     override fun mouseDragged(mouseX: Double, mouseY: Double, button: Int, dragX: Double, dragY: Double): Boolean {
-        if (dragging && button == LEFT_BUTTON) {
+        if (button != dragButton || !insideViewport(mouseX, mouseY)) {
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY)
+        }
+        if (button == LEFT_BUTTON) {
             orbitYaw -= dragX.toFloat() * DRAG_SENSITIVITY
             orbitPitch = (orbitPitch + dragY.toFloat() * DRAG_SENSITIVITY).coerceIn(-PITCH_LIMIT, PITCH_LIMIT)
-            return true
+        } else if (button == RIGHT_BUTTON) {
+            val units = unitsPerPixel()
+            panX = (panX - dragX.toFloat() * units).coerceIn(-PAN_LIMIT, PAN_LIMIT)
+            panY = (panY + dragY.toFloat() * units).coerceIn(-PAN_LIMIT, PAN_LIMIT)
+        } else {
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY)
         }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY)
+        return true
     }
+
+    /** Model-space units covered by one GUI pixel at the current distance, so a grab tracks the cursor. */
+    private fun unitsPerPixel(): Float =
+        (2f * FOV_TAN_HALF * cameraDistance) / VIEW_SIZE
 
     override fun mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean {
         if (insideViewport(mouseX, mouseY)) {
@@ -483,11 +524,13 @@ class GlbPreviewScreen(
 
         const val BUTTON_Y = 206
         const val BUTTON_H = 18
+        const val BUTTON_W = 64
+        const val BUTTON_GAP = 8
 
         const val BIND_POSE = "(Bind pose)"
         const val NO_CLIPS_HINT = "This model has no animation clips."
         val LOADING_HINT: Component = Component.literal("Loading model...")
-        const val HEADER_HINT = "Drag rotate · Wheel zoom · Esc back"
+        const val HEADER_HINT = "Left drag rotate · Right drag pan · Wheel zoom"
 
         const val SECONDS_PER_TICK = 0.05f
         const val FULL_BRIGHT = 15728880
@@ -498,7 +541,13 @@ class GlbPreviewScreen(
         const val ZOOM_MIN = 0.35f
         const val ZOOM_MAX = 3f
 
+        const val DEFAULT_YAW = 180f
+        const val DEFAULT_PITCH = 8f
+        // Generous in model units: an arms rig at 3x scale is still reachable, and Reset undoes any drift.
+        const val PAN_LIMIT = 10f
+
         const val LEFT_BUTTON = 0
+        const val RIGHT_BUTTON = 1
         const val KEY_UP = 265
         const val KEY_DOWN = 264
         const val KEY_SPACE = 32
@@ -514,6 +563,8 @@ class GlbPreviewScreen(
         val VIEWPORT_BG = 0xFF141418.toInt()
         val LIST_BG = 0xFF101010.toInt()
 
-        val PROJECTION = Matrix4f().perspective(Math.toRadians(35.0).toFloat(), 1f, 0.05f, 100f)
+        const val FOV_DEGREES = 35.0
+        val FOV_TAN_HALF = tan(Math.toRadians(FOV_DEGREES * 0.5)).toFloat()
+        val PROJECTION = Matrix4f().perspective(Math.toRadians(FOV_DEGREES).toFloat(), 1f, 0.05f, 100f)
     }
 }
