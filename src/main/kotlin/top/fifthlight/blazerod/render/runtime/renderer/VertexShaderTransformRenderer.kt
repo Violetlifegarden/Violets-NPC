@@ -15,6 +15,7 @@ import it.unimi.dsi.fastutil.ints.Int2ReferenceMap
 import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector2i
+import top.fifthlight.blazerod.model.RgbaColor
 import top.fifthlight.blazerod.model.times
 import top.fifthlight.blazerod.render.common.runtime.data.MorphTargetBuffer
 import top.fifthlight.blazerod.render.common.runtime.data.RenderSkinBuffer
@@ -22,6 +23,7 @@ import top.fifthlight.blazerod.render.common.runtime.uniform.FogUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.InstanceDataUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.LightingUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.MorphDataUniformBuffer
+import top.fifthlight.blazerod.render.common.runtime.uniform.PbrDataUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.ProjectionUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.SkinModelIndicesUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.UnlitDataUniformBuffer
@@ -196,7 +198,27 @@ class VertexShaderTransformRenderer private constructor() :
                     withVertexFormat(material.vertexFormat)
 
                     when (material) {
-                        is RenderMaterial.Pbr -> TODO("PBR is not support for now")
+                        is RenderMaterial.Pbr -> {
+                            withLocation(
+                                GlbId.fromNamespaceAndPath(
+                                    "blazerod",
+                                    "pbr" + pipelineInfo.nameSuffix()
+                                )
+                            )
+
+                            withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/pbr"))
+                            withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/pbr"))
+                            withBlend(BlendFunction.TRANSLUCENT)
+                            withSampler("SamplerBaseColor")
+                            withSampler("SamplerLightMap")
+                            withSampler("SamplerOverlay")
+                            withSampler("SamplerMetallicRoughness")
+                            withSampler("SamplerNormal")
+                            withSampler("SamplerOcclusion")
+                            withSampler("SamplerEmissive")
+                            withUniform("PbrData", UniformType.UNIFORM_BUFFER)
+                            withUniform("Lighting", UniformType.UNIFORM_BUFFER)
+                        }
 
                         is RenderMaterial.Unlit -> {
                             withLocation(
@@ -306,6 +328,7 @@ class VertexShaderTransformRenderer private constructor() :
         var morphTargetIndicesBufferSlice: GpuBufferSlice? = null
         var unlitData: GpuBufferSlice? = null
         var vanillaData: GpuBufferSlice? = null
+        var pbrData: GpuBufferSlice? = null
 
         try {
             instanceDataUniformBufferSlice = InstanceDataUniformBuffer.write {
@@ -347,7 +370,27 @@ class VertexShaderTransformRenderer private constructor() :
                 morphTargetIndicesBufferSlice = dataPool.upload(targetBuffer.indicesBuffer)
             }
             when (material) {
-                is RenderMaterial.Pbr -> {}
+                is RenderMaterial.Pbr -> {
+                    pbrData = PbrDataUniformBuffer.write {
+                        baseColor = material.baseColor * task.tint
+                        emissiveFactor = RgbaColor(
+                            material.emissiveFactor.r,
+                            material.emissiveFactor.g,
+                            material.emissiveFactor.b,
+                            1f,
+                        )
+                        metallicFactor = material.metallicFactor
+                        roughnessFactor = material.roughnessFactor
+                        normalScale = material.normalScale
+                        occlusionStrength = material.occlusionStrength
+                        flags = if (material.hasNormalTexture) {
+                            PbrDataUniformBuffer.PbrDataLayout.FLAG_NORMAL_TEXTURE
+                        } else {
+                            0
+                        }
+                    }
+                }
+
                 is RenderMaterial.Unlit -> {
                     unlitData = UnlitDataUniformBuffer.write {
                         baseColor = material.baseColor * task.tint
@@ -383,8 +426,21 @@ class VertexShaderTransformRenderer private constructor() :
                 vanillaData?.let {
                     setUniform("VanillaData", vanillaData)
                 }
+                pbrData?.let {
+                    setUniform("PbrData", it)
+                }
                 when (material) {
-                    is RenderMaterial.Pbr -> {}
+                    is RenderMaterial.Pbr -> {
+                        bindSampler("SamplerBaseColor", material.baseColorTexture.view)
+                        bindSampler("SamplerLightMap", Gl.samplers.lightMap)
+                        bindSampler("SamplerOverlay", Gl.samplers.overlay)
+                        bindSampler("SamplerMetallicRoughness", material.metallicRoughnessTexture.view)
+                        bindSampler("SamplerNormal", material.normalTexture.view)
+                        bindSampler("SamplerOcclusion", material.occlusionTexture.view)
+                        bindSampler("SamplerEmissive", material.emissiveTexture.view)
+                        setUniform("Lighting", LightingUniformBuffer.writeLevel())
+                    }
+
                     is RenderMaterial.Unlit -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
                         bindSampler("SamplerLightMap", Gl.samplers.lightMap)
@@ -479,6 +535,7 @@ class VertexShaderTransformRenderer private constructor() :
         var morphTargetIndicesBufferSlice: GpuBufferSlice? = null
         var unlitData: GpuBufferSlice? = null
         var vanillaData: GpuBufferSlice? = null
+        var pbrData: GpuBufferSlice? = null
 
         val firstTask = tasks.first()
         try {
@@ -528,7 +585,27 @@ class VertexShaderTransformRenderer private constructor() :
                     dataPool.upload(tasks.map { it.morphTargetBuffer[morphedPrimitiveIndex].content.indicesBuffer })
             }
             when (material) {
-                is RenderMaterial.Pbr -> {}
+                is RenderMaterial.Pbr -> {
+                    pbrData = PbrDataUniformBuffer.write {
+                        baseColor = material.baseColor
+                        emissiveFactor = RgbaColor(
+                            material.emissiveFactor.r,
+                            material.emissiveFactor.g,
+                            material.emissiveFactor.b,
+                            1f,
+                        )
+                        metallicFactor = material.metallicFactor
+                        roughnessFactor = material.roughnessFactor
+                        normalScale = material.normalScale
+                        occlusionStrength = material.occlusionStrength
+                        flags = if (material.hasNormalTexture) {
+                            PbrDataUniformBuffer.PbrDataLayout.FLAG_NORMAL_TEXTURE
+                        } else {
+                            0
+                        }
+                    }
+                }
+
                 is RenderMaterial.Unlit -> {
                     unlitData = UnlitDataUniformBuffer.write {
                         baseColor = material.baseColor
@@ -564,8 +641,21 @@ class VertexShaderTransformRenderer private constructor() :
                 vanillaData?.let {
                     setUniform("VanillaData", vanillaData)
                 }
+                pbrData?.let {
+                    setUniform("PbrData", it)
+                }
                 when (material) {
-                    is RenderMaterial.Pbr -> {}
+                    is RenderMaterial.Pbr -> {
+                        bindSampler("SamplerBaseColor", material.baseColorTexture.view)
+                        bindSampler("SamplerLightMap", Gl.samplers.lightMap)
+                        bindSampler("SamplerOverlay", Gl.samplers.overlay)
+                        bindSampler("SamplerMetallicRoughness", material.metallicRoughnessTexture.view)
+                        bindSampler("SamplerNormal", material.normalTexture.view)
+                        bindSampler("SamplerOcclusion", material.occlusionTexture.view)
+                        bindSampler("SamplerEmissive", material.emissiveTexture.view)
+                        setUniform("Lighting", LightingUniformBuffer.writeLevel())
+                    }
+
                     is RenderMaterial.Unlit -> {
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
                         bindSampler("SamplerLightMap", Gl.samplers.lightMap)

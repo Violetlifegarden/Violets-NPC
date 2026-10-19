@@ -188,13 +188,12 @@ internal class GltfLoader(
     }
 
     private fun loadMaterials() {
-        fun loadTextureInfo(info: GltfTextureInfo?) = info?.let {
-            Material.TextureInfo(
-                texture = textures.getOrNull(info.index)
-                    ?: throw GltfLoadException("Bad texture info: texture ${info.index} not found"),
-                textureCoordinate = info.texCoord,
-            )
-        }
+        fun loadTextureInfo(index: Int, texCoord: Int) = Material.TextureInfo(
+            texture = textures.getOrNull(index)
+                ?: throw GltfLoadException("Bad texture info: texture $index not found"),
+            textureCoordinate = texCoord,
+        )
+        fun loadTextureInfo(info: GltfTextureInfo?) = info?.let { loadTextureInfo(it.index, it.texCoord) }
         materials = gltf.materials?.map {
             val unlit = it.extensions.unlit
             when {
@@ -213,7 +212,12 @@ internal class GltfLoader(
                     baseColorTexture = loadTextureInfo(it.pbrMetallicRoughness.baseColorTexture),
                     metallicFactor = it.pbrMetallicRoughness.metallicFactor,
                     metallicRoughnessTexture = loadTextureInfo(it.pbrMetallicRoughness.metallicRoughnessTexture),
-                    // TODO more attributes
+                    normalTexture = it.normalTexture?.let { info -> loadTextureInfo(info.index, info.texCoord) },
+                    normalScale = it.normalTexture?.scale ?: 1f,
+                    occlusionTexture = it.occlusionTexture?.let { info -> loadTextureInfo(info.index, info.texCoord) },
+                    occlusionStrength = it.occlusionTexture?.strength ?: 1f,
+                    emissiveTexture = loadTextureInfo(it.emissiveTexture),
+                    emissiveFactor = RgbColor(it.emissiveFactor.x, it.emissiveFactor.y, it.emissiveFactor.z),
                     alphaMode = it.alphaMode,
                     alphaCutoff = it.alphaCutoff,
                     doubleSided = it.doubleSided,

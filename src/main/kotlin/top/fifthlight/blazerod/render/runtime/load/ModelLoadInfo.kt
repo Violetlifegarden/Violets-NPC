@@ -58,7 +58,9 @@ sealed class MaterialLoadInfo {
         val roughnessFactor: Float,
         val metallicRoughnessTexture: TextureInfo?,
         val normalTexture: TextureInfo?,
+        val normalScale: Float = 1f,
         val occlusionTexture: TextureInfo?,
+        val occlusionStrength: Float = 1f,
         val emissiveTexture: TextureInfo?,
         val emissiveFactor: RgbColor,
         override val alphaMode: Material.AlphaMode,
@@ -66,7 +68,13 @@ sealed class MaterialLoadInfo {
         override val doubleSided: Boolean = false,
         override val skinned: Boolean,
         override val morphed: Boolean,
-    ) : MaterialLoadInfo()
+    ) : MaterialLoadInfo() {
+        override fun getVertexFormat(skinned: Boolean): GlbVertexFormat = if (skinned) {
+            GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
+        } else {
+            GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
+        }
+    }
 
     data class Unlit(
         override val name: String?,

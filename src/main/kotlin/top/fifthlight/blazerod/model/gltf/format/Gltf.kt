@@ -331,7 +331,7 @@ internal data class GltfMaterial(
     val name: String? = null,
     val pbrMetallicRoughness: GltfPbrMetallicRoughness = GltfPbrMetallicRoughness.default,
     val normalTexture: GltfNormalTextureInfo? = null,
-    // TODO occlusionTexture
+    val occlusionTexture: GltfOcclusionTextureInfo? = null,
     val emissiveTexture: GltfTextureInfo? = null,
     @Serializable(with = Vector3fSerializer::class)
     val emissiveFactor: Vector3f = Vector3f(0f),
@@ -379,6 +379,13 @@ internal data class GltfNormalTextureInfo(
     val index: Int,
     val texCoord: Int = 0,
     val scale: Float = 1f
+)
+
+@Serializable
+internal data class GltfOcclusionTextureInfo(
+    val index: Int,
+    val texCoord: Int = 0,
+    val strength: Float = 1f
 )
 
 @Serializable

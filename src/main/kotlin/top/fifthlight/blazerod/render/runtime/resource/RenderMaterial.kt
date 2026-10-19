@@ -49,9 +49,12 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
         val roughnessFactor: Float = 1f,
         val metallicRoughnessTexture: RenderTexture = RenderTexture.WHITE_RGBA_TEXTURE,
         val normalTexture: RenderTexture = RenderTexture.WHITE_RGBA_TEXTURE,
+        val hasNormalTexture: Boolean = false,
+        val normalScale: Float = 1f,
         val occlusionTexture: RenderTexture = RenderTexture.WHITE_RGBA_TEXTURE,
+        val occlusionStrength: Float = 1f,
         val emissiveTexture: RenderTexture = RenderTexture.WHITE_RGBA_TEXTURE,
-        val emissiveFactor: RgbColor = RgbColor(1f, 1f, 1f),
+        val emissiveFactor: RgbColor = RgbColor(0f, 0f, 0f),
         override val alphaMode: AlphaMode = OPAQUE,
         override val alphaCutoff: Float = .5f,
         override val doubleSided: Boolean,
@@ -70,7 +73,11 @@ sealed class RenderMaterial<Desc : RenderMaterial.Descriptor> : AbstractRefCount
             get() = Descriptor
 
         override val vertexFormat: GlbVertexFormat
-            get() = TODO("Not yet implemented")
+            get() = if (skinned) {
+                GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL_JOINT_WEIGHT
+            } else {
+                GlbVertexFormats.POSITION_COLOR_TEXTURE_NORMAL
+            }
 
         override fun onClosed() {
             baseColorTexture.decreaseReferenceCount()

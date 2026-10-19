@@ -89,13 +89,22 @@ class ModelPreprocessor private constructor(
         morphed: Boolean,
         hasNormals: Boolean,
     ) = when (material) {
-        // Shade PBR materials with the vanilla entity lighting until the PBR shader lands. The vanilla
-        // path needs normals, so a primitive without them stays unlit instead of lighting from zero.
+        // The PBR shader shades from normals; a primitive without them stays unlit instead of
+        // lighting from a zero normal.
         is Material.Pbr -> if (hasNormals) {
-            MaterialLoadInfo.Vanilla(
+            MaterialLoadInfo.Pbr(
                 name = material.name,
                 baseColor = material.baseColor,
                 baseColorTexture = loadTextureInfo(material.baseColorTexture),
+                metallicFactor = material.metallicFactor,
+                roughnessFactor = material.roughnessFactor,
+                metallicRoughnessTexture = loadTextureInfo(material.metallicRoughnessTexture),
+                normalTexture = loadTextureInfo(material.normalTexture),
+                normalScale = material.normalScale,
+                occlusionTexture = loadTextureInfo(material.occlusionTexture),
+                occlusionStrength = material.occlusionStrength,
+                emissiveTexture = loadTextureInfo(material.emissiveTexture),
+                emissiveFactor = material.emissiveFactor,
                 alphaMode = material.alphaMode,
                 alphaCutoff = material.alphaCutoff,
                 doubleSided = material.doubleSided,
