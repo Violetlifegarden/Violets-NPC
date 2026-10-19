@@ -42,9 +42,9 @@ void main() {
     gl_Position = vertex_position;
 
     #ifdef NO_CARDINAL_LIGHTING
-    vertexColor = Color;
+    vertexColor = Color * instance.tint;
     #else
-    vertexColor = minecraft_mix_light(Light0_Direction, Light1_Direction, vertex_normal, color);
+    vertexColor = minecraft_mix_light(Light0_Direction, Light1_Direction, vertex_normal, color) * instance.tint;
     #endif
     #ifndef EMISSIVE
     lightMapColor = texelFetch(SamplerLightMap, instance.light_map_uv / 16, 0);

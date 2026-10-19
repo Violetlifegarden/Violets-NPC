@@ -15,6 +15,8 @@ import it.unimi.dsi.fastutil.ints.Int2ReferenceMap
 import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector2i
+import org.joml.Vector4f
+import top.fifthlight.blazerod.model.Material.AlphaMode
 import top.fifthlight.blazerod.model.RgbaColor
 import top.fifthlight.blazerod.model.times
 import top.fifthlight.blazerod.render.common.runtime.data.MorphTargetBuffer
@@ -54,6 +56,7 @@ class VertexShaderTransformRenderer private constructor() :
             skinned: Boolean = false,
             instanced: Boolean = false,
             morphed: Boolean = false,
+            blended: Boolean = false,
         ) : this(Unit.run {
             var item = BitmapItem()
             if (doubleSided) {
@@ -68,6 +71,9 @@ class VertexShaderTransformRenderer private constructor() :
             if (morphed) {
                 item += ELEMENT_MORPHED
             }
+            if (blended) {
+                item += ELEMENT_BLENDED
+            }
             item
         })
 
@@ -75,7 +81,8 @@ class VertexShaderTransformRenderer private constructor() :
             doubleSided = material.doubleSided,
             skinned = material.skinned,
             instanced = instanced,
-            morphed = material.morphed
+            morphed = material.morphed,
+            blended = material.alphaMode == AlphaMode.BLEND,
         )
 
         val doubleSided
@@ -86,6 +93,8 @@ class VertexShaderTransformRenderer private constructor() :
             get() = ELEMENT_INSTANCED in bitmap
         val morphed
             get() = ELEMENT_MORPHED in bitmap
+        val blended
+            get() = ELEMENT_BLENDED in bitmap
 
         fun nameSuffix() = buildString {
             if (doubleSided) {
@@ -102,6 +111,9 @@ class VertexShaderTransformRenderer private constructor() :
             if (morphed) {
                 append("_morphed")
             }
+            if (blended) {
+                append("_blend")
+            }
         }
 
         companion object {
@@ -109,6 +121,7 @@ class VertexShaderTransformRenderer private constructor() :
             val ELEMENT_SKINNED = BitmapItem.Element.of(1)
             val ELEMENT_INSTANCED = BitmapItem.Element.of(2)
             val ELEMENT_MORPHED = BitmapItem.Element.of(3)
+            val ELEMENT_BLENDED = BitmapItem.Element.of(4)
         }
 
         inline operator fun plus(element: BitmapItem.Element) =
@@ -121,7 +134,8 @@ class VertexShaderTransformRenderer private constructor() :
             element in bitmap
 
         override fun toString(): String {
-            return "PipelineInfo(doubleSided=$doubleSided, skinned=$skinned, instanced=$instanced, morphed=$morphed)"
+            return "PipelineInfo(doubleSided=$doubleSided, skinned=$skinned, instanced=$instanced, " +
+                    "morphed=$morphed, blended=$blended)"
         }
     }
 
@@ -208,7 +222,8 @@ class VertexShaderTransformRenderer private constructor() :
 
                             withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/pbr"))
                             withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/pbr"))
-                            withBlend(BlendFunction.TRANSLUCENT)
+                            withBlend(if (pipelineInfo.blended) BlendFunction.TRANSLUCENT else null)
+                            withDepthWrite(!pipelineInfo.blended)
                             withSampler("SamplerBaseColor")
                             withSampler("SamplerLightMap")
                             withSampler("SamplerOverlay")
@@ -230,7 +245,8 @@ class VertexShaderTransformRenderer private constructor() :
 
                             withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/unlit"))
                             withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/unlit"))
-                            withBlend(BlendFunction.TRANSLUCENT)
+                            withBlend(if (pipelineInfo.blended) BlendFunction.TRANSLUCENT else null)
+                            withDepthWrite(!pipelineInfo.blended)
                             withSampler("SamplerBaseColor")
                             withSampler("SamplerLightMap")
                             withSampler("SamplerOverlay")
@@ -247,7 +263,8 @@ class VertexShaderTransformRenderer private constructor() :
 
                             withVertexShader(GlbId.fromNamespaceAndPath("blazerod", "core/vanilla"))
                             withFragmentShader(GlbId.fromNamespaceAndPath("blazerod", "core/vanilla"))
-                            withBlend(BlendFunction.TRANSLUCENT)
+                            withBlend(if (pipelineInfo.blended) BlendFunction.TRANSLUCENT else null)
+                            withDepthWrite(!pipelineInfo.blended)
                             withSampler("SamplerBaseColor")
                             withSampler("SamplerLightMap")
                             withSampler("SamplerOverlay")
@@ -271,6 +288,7 @@ class VertexShaderTransformRenderer private constructor() :
 
     private val lightVector = Vector2i()
     private val overlayVector = Vector2i()
+    private val tintVector = Vector4f()
     private val normalMatrix = Matrix4f()
     private val viewportSize = Vector2f()
 
@@ -347,6 +365,10 @@ class VertexShaderTransformRenderer private constructor() :
                 )
                 this.lightMapUvs[0] = lightVector
                 this.overlayUvs[0] = overlayVector
+                // The single-task path folds the tint into BaseColor below, so the per-instance tint the shared
+                // vertex shader reads must stay at identity here.
+                tintVector.set(1f, 1f, 1f, 1f)
+                this.tints[0] = tintVector
             }
             localMatricesBufferSlice = dataPool.upload(task.localMatricesBuffer.content.buffer)
             skinBuffer?.let { skinBuffer ->
@@ -557,6 +579,8 @@ class VertexShaderTransformRenderer private constructor() :
                     )
                     this.lightMapUvs[index] = lightVector
                     this.overlayUvs[index] = overlayVector
+                    tintVector.set(task.tint.r, task.tint.g, task.tint.b, task.tint.a)
+                    this.tints[index] = tintVector
                     this.modelMatrices[index] = task.modelMatrix
                     this.modelNormalMatrices[index] = task.modelMatrix.normal(normalMatrix)
                 }

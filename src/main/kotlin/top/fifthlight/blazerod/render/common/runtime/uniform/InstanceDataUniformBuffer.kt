@@ -21,5 +21,6 @@ object InstanceDataUniformBuffer :
         var modelNormalMatrices by mat4Array(BlazeRod.INSTANCE_SIZE)
         var lightMapUvs by ivec2Array(BlazeRod.INSTANCE_SIZE)
         var overlayUvs by ivec2Array(BlazeRod.INSTANCE_SIZE)
+        var tints by vec4Array(BlazeRod.INSTANCE_SIZE)
     }
 }

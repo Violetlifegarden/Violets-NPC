@@ -163,12 +163,11 @@ object GlbNpcModels {
                 GlbNpcConfig.MATERIAL_UNLIT -> MaterialMode.UNLIT
                 else -> MaterialMode.DEFAULT
             }
-            // T2 batching: the shared renderer supports scheduling, which groups same-scene tasks and draws each
-            // primitive once with all instances (see executeScheduled). `renderInstanced` carries light/overlay/model
-            // matrix PER INSTANCE but has no per-instance tint, so tinted NPCs stay on the immediate single-task path
-            // rather than silently losing their tint.
+            // Batching: the shared renderer supports scheduling, which groups same-scene tasks and draws each
+            // primitive once with all instances (see executeScheduled). model matrix/light/overlay/tint are all
+            // per-instance now, so tinted NPCs batch like everyone else.
             val scheduled = renderer as? ScheduledRenderer<*, *>
-            if (scheduled != null && entity.config.tint == GlbNpcConfig.NO_TINT) {
+            if (scheduled != null) {
                 scheduled.schedule(instance.createRenderTask(bodyMatrix, light, overlay, tint, materialMode))
                 scheduledAny = true
             } else {

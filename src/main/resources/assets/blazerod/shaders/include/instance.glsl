@@ -27,6 +27,7 @@ layout (std140) uniform InstanceData {
     mat4 ModelNormalMatrices[INSTANCE_SIZE];
     ivec2 LightMapUvs[INSTANCE_SIZE];
     ivec2 OverlayUvs[INSTANCE_SIZE];
+    vec4 Tints[INSTANCE_SIZE];
 };
 
 struct instance_t {
@@ -34,6 +35,7 @@ struct instance_t {
     mat3 model_normal_matrix;
     ivec2 light_map_uv;
     ivec2 overlay_uv;
+    vec4 tint;
 };
 
 instance_t get_instance() {
@@ -68,5 +70,6 @@ instance_t get_instance() {
     instance.model_normal_matrix = mat3(ModelNormalMatrices[INSTANCE_ID] * local_normal_matrix);
     instance.light_map_uv = LightMapUvs[INSTANCE_ID];
     instance.overlay_uv = OverlayUvs[INSTANCE_ID];
+    instance.tint = Tints[INSTANCE_ID];
     return instance;
 }

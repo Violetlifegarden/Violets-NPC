@@ -17,6 +17,7 @@ class RenderPipeline private constructor(
     val vertexFormat: GlbVertexFormat?,
     val isCullEnabled: Boolean,
     val blendFunction: BlendFunction?,
+    val depthWrite: Boolean,
     val uniforms: Map<String, Uniform>,
     val storageBuffers: List<String>,
     val samplers: List<String>,
@@ -59,6 +60,7 @@ class RenderPipeline private constructor(
         private var vertexFormat: GlbVertexFormat? = null
         private var isCullEnabled = true
         private var blendFunction: BlendFunction? = null
+        private var depthWrite = true
         private val uniforms = LinkedHashMap<String, Uniform>()
         private val storageBuffers = mutableListOf<String>()
         private val samplers = mutableListOf<String>()
@@ -76,6 +78,8 @@ class RenderPipeline private constructor(
         fun withCull(enable: Boolean) = also { isCullEnabled = enable }
 
         fun withBlend(blend: BlendFunction?) = also { blendFunction = blend }
+
+        fun withDepthWrite(enable: Boolean) = also { depthWrite = enable }
 
         fun withSampler(name: String) = also { samplers += name }
 
@@ -102,6 +106,7 @@ class RenderPipeline private constructor(
             vertexFormat = vertexFormat,
             isCullEnabled = isCullEnabled,
             blendFunction = blendFunction,
+            depthWrite = depthWrite,
             uniforms = uniforms.toMap(),
             storageBuffers = storageBuffers.toList(),
             samplers = samplers.toList(),

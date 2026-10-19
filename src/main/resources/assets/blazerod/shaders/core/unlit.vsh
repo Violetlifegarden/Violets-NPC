@@ -37,7 +37,7 @@ void main() {
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
 
     gl_Position = vertex_position;
-    vertexColor = color;
+    vertexColor = color * instance.tint;
     lightMapColor = texelFetch(SamplerLightMap, instance.light_map_uv / 16, 0);
     overlayColor = texelFetch(SamplerOverlay, instance.overlay_uv, 0);
     texCoord0 = texCoord;

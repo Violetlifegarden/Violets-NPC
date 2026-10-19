@@ -54,6 +54,8 @@ class RenderPass private constructor(
         nextTexelUnit = pipeline.samplers.size
 
         setBlend(pipeline.blendFunction)
+        // Alpha-blended geometry must not occlude what is drawn after it; the state is restored on close.
+        GL11.glDepthMask(pipeline.depthWrite)
         if (pipeline.isCullEnabled) {
             GL11.glEnable(GL11.GL_CULL_FACE)
             GL11.glCullFace(GL11.GL_BACK)

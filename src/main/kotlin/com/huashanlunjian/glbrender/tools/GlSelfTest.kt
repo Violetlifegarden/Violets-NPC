@@ -229,6 +229,17 @@ private fun runRenderPassChecks(device: GpuDevice) {
         1,
         1,
     ))
+    // Vanilla's "no overlay" texel is white and opaque: the fragment shader's mix() keeps the vertex
+    // colour at alpha 1, so an identity overlay lets the tint through unchanged.
+    val overlay = fillTexture(device.createTexture(
+        { "selftest overlay" },
+        GpuTexture.USAGE_TEXTURE_BINDING,
+        TextureFormat.RGBA8,
+        4,
+        4,
+        1,
+        1,
+    ))
 
     // The plain unlit specialisation: SSBO matrices, no skinning, no morphing. The format is built
     // rather than taken from DefaultVertexFormat so that it matches unlit.vsh attribute for attribute.
@@ -249,6 +260,7 @@ private fun runRenderPassChecks(device: GpuDevice) {
         .withBlend(BlendFunction.TRANSLUCENT)
         .withSampler("SamplerBaseColor")
         .withSampler("SamplerLightMap")
+        .withSampler("SamplerOverlay")
         .withUniform("Projection", UniformType.UNIFORM_BUFFER)
         .withUniform("Fog", UniformType.UNIFORM_BUFFER)
         .withUniform("UnlitData", UniformType.UNIFORM_BUFFER)
@@ -258,17 +270,25 @@ private fun runRenderPassChecks(device: GpuDevice) {
         .withShaderDefine("INSTANCE_SIZE", 16)
         .build()
 
-    // InstanceData holds three 16-entry arrays, so it is by far the largest block; one arena covers
-    // every block in the pipeline the way UniformBufferStorage does.
+    // InstanceData holds the per-instance arrays (matrices, light/overlay, tint), so it is by far the largest
+    // block; one arena covers every block in the pipeline the way UniformBufferStorage does.
     val arena = device.createBuffer({ "selftest uniform arena" }, GpuBuffer.USAGE_UNIFORM or GpuBuffer.USAGE_MAP_WRITE, 8192)
     val encoder = device.createCommandEncoder()
+    // Fresh GL buffer storage is undefined, not zero, and the shader reads arrays this test does not
+    // always write (light/overlay UVs, the unused tint slots), so start from a known state.
+    upload(encoder, arena.slice()) { mapped -> for (i in 0 until 8192) mapped.put(i, 0.toByte()) }
     upload(encoder, arena.slice(0, 96)) { it.identity4(0).putFloat(64, 16f).putFloat(68, 16f) }
     upload(encoder, arena.slice(128, 64)) {
         it.putFloat(16, 1000f).putFloat(20, 2000f).putFloat(24, 1000f).putFloat(28, 2000f)
     }
     upload(encoder, arena.slice(256, 16)) { it.putFloat(0, 1f).putFloat(4, 1f).putFloat(8, 1f).putFloat(12, 1f) }
     // PrimitiveSize, PrimitiveIndex, ViewMatrix, then ModelMatrices[0] at the block's own offsets.
-    upload(encoder, arena.slice(512, 2384)) { it.identity4(16).identity4(80) }
+    // Tints[0] is a deliberate non-white value (orange) so the readback proves the shader picks the
+    // per-instance tint up; zero would discard the triangle instead.
+    upload(encoder, arena.slice(512, 2896)) {
+        it.identity4(16).identity4(80)
+            .putFloat(2640, 1f).putFloat(2644, 0.5f).putFloat(2648, 0.25f).putFloat(2652, 1f)
+    }
 
     val matrices = device.createBuffer(
         { "selftest local matrices" },
@@ -294,17 +314,26 @@ private fun runRenderPassChecks(device: GpuDevice) {
     val indices = shortBuffer(0, 1, 2)
     val index = device.createBuffer({ "selftest mesh ibo" }, GpuBuffer.USAGE_INDEX, indices)
 
+    // The pass enables depth testing (the game leaves it wherever its last render type put it), so the
+    // depth buffer has to start at the far plane or the triangle is rejected against undefined contents.
     val pass = encoder.createRenderPass(
         { "selftest pass" },
         device.createTextureView(color),
-        OptionalInt.empty(),
+        OptionalInt.of(0),
         device.createTextureView(depth),
-        OptionalDouble.empty(),
+        OptionalDouble.of(1.0),
     )
     pass.setPipeline(pipeline)
     // The vertex format enables attribute location i for element i, exactly like 1.21.1 does, so a
     // linker that put Position somewhere else silently draws nothing.
     val program = pipeline.program
+    run {
+        val block = GL31.glGetUniformBlockIndex(program.id, "InstanceData")
+        val size = GL31.glGetActiveUniformBlocki(program.id, block, GL31.GL_UNIFORM_BLOCK_DATA_SIZE)
+        // INSTANCE_SIZE=16: 80 header + 2*1024 matrices + 2*256 uv + 256 tint = 2896. A shorter block
+        // would mean the shader declared fewer arrays than the CPU-side layout writes.
+        check(size == 2896) { "InstanceData is $size bytes, expected 2896 with the tint array" }
+    }
     check(
         program.attributeLocation("Position") == 0 &&
                 program.attributeLocation("Color") == 1 &&
@@ -317,10 +346,11 @@ private fun runRenderPassChecks(device: GpuDevice) {
     pass.setUniform("Projection", arena.slice(0, 96))
     pass.setUniform("Fog", arena.slice(128, 64))
     pass.setUniform("UnlitData", arena.slice(256, 16))
-    pass.setUniform("InstanceData", arena.slice(512, 2384))
+    pass.setUniform("InstanceData", arena.slice(512, 2896))
     pass.setStorageBuffer("LocalMatricesData", matrices.slice())
     pass.bindSampler("SamplerBaseColor", device.createTextureView(baseColor))
     pass.bindSampler("SamplerLightMap", device.createTextureView(lightMap))
+    pass.bindSampler("SamplerOverlay", device.createTextureView(overlay))
     pass.setVertexFormatMode(GlbPrimitiveMode.TRIANGLES)
     pass.setVertexBuffer(0, vertex)
     pass.setIndexBuffer(index.slice(), GlbIndexType.SHORT)
@@ -349,8 +379,10 @@ private fun runRenderPassChecks(device: GpuDevice) {
             pixels.get().toInt() and 0xFF,
         )
     }
-    check(center[0] > 200 && center[1] > 200 && center[2] > 200) {
-        "triangle did not cover the center: ${center.toList()}"
+    // Orange and white differ in every channel, so a tint that never reached the shader (or that came
+    // back as identity) cannot pass: the expected value is exactly the per-instance tint.
+    check(center[0] > 250 && center[1] in 124..132 && center[2] in 60..68) {
+        "triangle did not draw the per-instance tint: ${center.toList()}"
     }
     check(corner[3] == 0) { "the target was not empty outside the triangle: ${corner.toList()}" }
     println("render pass = drew center=${center.toList()} corner=${corner.toList()}")
@@ -361,6 +393,7 @@ private fun runRenderPassChecks(device: GpuDevice) {
     arena.close()
     baseColor.close()
     lightMap.close()
+    overlay.close()
     color.close()
     depth.close()
 }

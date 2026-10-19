@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ReferenceOpenHashMap
 import top.fifthlight.blazerod.render.common.resource.RenderSkin
 import top.fifthlight.blazerod.model.Camera
 import top.fifthlight.blazerod.model.HumanoidTag
+import top.fifthlight.blazerod.model.Material.AlphaMode
 import top.fifthlight.blazerod.model.NodeId
 import top.fifthlight.blazerod.model.NodeTransform
 import top.fifthlight.blazerod.render.api.resource.RenderExpression
@@ -67,7 +68,9 @@ class RenderSceneImpl(
             }
         }
         this.sortedNodes = nodes
-        this.primitiveComponents = primitiveComponents
+        // Alpha-blended primitives are drawn with depth writes off, so they must come after every opaque one;
+        // primitiveIndex is the loader's global index (not the list position), so reordering only affects draw order.
+        this.primitiveComponents = primitiveComponents.sortedBy { it.primitive.material.alphaMode == AlphaMode.BLEND }
         this.morphedPrimitiveComponents = (0 until morphedPrimitives.size).map {
             morphedPrimitives.get(it) ?: error("Morphed primitive index not found: $it")
         }
