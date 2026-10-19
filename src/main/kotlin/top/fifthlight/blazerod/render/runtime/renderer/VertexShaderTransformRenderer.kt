@@ -20,6 +20,7 @@ import top.fifthlight.blazerod.render.common.runtime.data.MorphTargetBuffer
 import top.fifthlight.blazerod.render.common.runtime.data.RenderSkinBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.FogUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.InstanceDataUniformBuffer
+import top.fifthlight.blazerod.render.common.runtime.uniform.LightingUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.MorphDataUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.ProjectionUniformBuffer
 import top.fifthlight.blazerod.render.common.runtime.uniform.SkinModelIndicesUniformBuffer
@@ -394,6 +395,7 @@ class VertexShaderTransformRenderer private constructor() :
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
                         bindSampler("SamplerLightMap", Gl.samplers.lightMap)
                         bindSampler("SamplerOverlay", Gl.samplers.overlay)
+                        setUniform("Lighting", LightingUniformBuffer.writeLevel())
                     }
                 }
 
@@ -574,6 +576,7 @@ class VertexShaderTransformRenderer private constructor() :
                         bindSampler("SamplerBaseColor", material.baseColorTexture.view)
                         bindSampler("SamplerLightMap", Gl.samplers.lightMap)
                         bindSampler("SamplerOverlay", Gl.samplers.overlay)
+                        setUniform("Lighting", LightingUniformBuffer.writeLevel())
                     }
                 }
 

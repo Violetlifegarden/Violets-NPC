@@ -87,18 +87,33 @@ class ModelPreprocessor private constructor(
         material: Material,
         skinned: Boolean,
         morphed: Boolean,
+        hasNormals: Boolean,
     ) = when (material) {
-        // TODO: Pbr is not really supported for now
-        is Material.Pbr -> MaterialLoadInfo.Unlit(
-            name = material.name,
-            baseColor = material.baseColor,
-            baseColorTexture = loadTextureInfo(material.baseColorTexture),
-            alphaMode = material.alphaMode,
-            alphaCutoff = material.alphaCutoff,
-            doubleSided = material.doubleSided,
-            skinned = skinned,
-            morphed = morphed,
-        )
+        // Shade PBR materials with the vanilla entity lighting until the PBR shader lands. The vanilla
+        // path needs normals, so a primitive without them stays unlit instead of lighting from zero.
+        is Material.Pbr -> if (hasNormals) {
+            MaterialLoadInfo.Vanilla(
+                name = material.name,
+                baseColor = material.baseColor,
+                baseColorTexture = loadTextureInfo(material.baseColorTexture),
+                alphaMode = material.alphaMode,
+                alphaCutoff = material.alphaCutoff,
+                doubleSided = material.doubleSided,
+                skinned = skinned,
+                morphed = morphed,
+            )
+        } else {
+            MaterialLoadInfo.Unlit(
+                name = material.name,
+                baseColor = material.baseColor,
+                baseColorTexture = loadTextureInfo(material.baseColorTexture),
+                alphaMode = material.alphaMode,
+                alphaCutoff = material.alphaCutoff,
+                doubleSided = material.doubleSided,
+                skinned = skinned,
+                morphed = morphed,
+            )
+        }
 
         is Material.Unlit -> MaterialLoadInfo.Unlit(
             name = material.name,
@@ -442,6 +457,7 @@ class ModelPreprocessor private constructor(
                 material = it,
                 skinned = skinned,
                 morphed = morphed,
+                hasNormals = primitive.attributes.normal != null,
             )
         }
         val morphedPrimitiveIndex = if (material?.morphed == true) {
