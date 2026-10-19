@@ -3,7 +3,9 @@ package com.huashanlunjian.glbrender.npc.net
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
+import com.huashanlunjian.glbrender.npc.GlbNpcStats
 import com.mojang.logging.LogUtils
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.RegistryFriendlyByteBuf
 import net.minecraft.network.chat.Component
 import net.minecraft.network.codec.ByteBufCodecs
@@ -199,8 +201,44 @@ data class SetConfigPacket(
     }
 }
 
-/** Registers the payloads on the mod bus. Called from [com.huashanlunjian.glbrender.GlbRenderContent.register] (both dists). */
-object GlbRenderNetwork {
+/**
+ * Replaces an NPC's whole Stats block ([GlbNpcStats]). The block travels as one compound rather than ~40 packet fields
+ * (the same shape it is synced and saved as), and the server clamps every range via [GlbNpcStats.coerced] before
+ * applying, so a bad client cannot write out-of-range values.
+ */
+data class SetStatsPacket(val entityId: Int, val stats: GlbNpcStats) : CustomPacketPayload {
+    override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
+
+    companion object {
+        val TYPE: CustomPacketPayload.Type<SetStatsPacket> =
+            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath("glbrender", "set_stats"))
+
+        val STREAM_CODEC: StreamCodec<RegistryFriendlyByteBuf, SetStatsPacket> = StreamCodec.of(
+            { buf, packet ->
+                buf.writeVarInt(packet.entityId)
+                buf.writeNbt(packet.stats.toTag())
+            },
+            { buf ->
+                SetStatsPacket(buf.readVarInt(), GlbNpcStats.fromTag(buf.readNbt() ?: CompoundTag()))
+            },
+        )
+
+        fun handle(packet: SetStatsPacket, context: IPayloadContext) {
+            context.enqueueWork {
+                val player = context.player() as? ServerPlayer ?: return@enqueueWork
+                val npc = player.level().getEntity(packet.entityId) as? GlbNpc ?: return@enqueueWork
+                if (!GlbNpcEditing.canEdit(player, npc)) {
+                    LOGGER.warn("glbrender: rejected set_stats for {} from {} (no editing session)", packet.entityId, player.name)
+                    return@enqueueWork
+                }
+                npc.config.stats = packet.stats.coerced()
+                npc.applyStats()
+            }
+        }
+    }
+}
+
+/** Registers the payloads on the mod bus. Called from [com.huashanlunjian.glbrender.GlbRenderContent.register] (both dists). */object GlbRenderNetwork {
     fun register(bus: IEventBus) {
         bus.addListener(
             EventPriority.NORMAL,
@@ -212,6 +250,9 @@ object GlbRenderNetwork {
                 }
                 registrar.playToServer(SetConfigPacket.TYPE, SetConfigPacket.STREAM_CODEC) { packet, context ->
                     SetConfigPacket.handle(packet, context)
+                }
+                registrar.playToServer(SetStatsPacket.TYPE, SetStatsPacket.STREAM_CODEC) { packet, context ->
+                    SetStatsPacket.handle(packet, context)
                 }
             },
         )

@@ -117,6 +117,63 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         add(Button.builder(Component.literal(text)) { onPress() }.bounds(guiLeft + x, guiTop + y, w, 20).build())
     }
 
+    // --- functional Stats controls (the GlbNpcStats block; each change commits a SetStatsPacket) ---
+
+    protected fun statsStepper(
+        x: Int,
+        y: Int,
+        w: Int,
+        initial: Int,
+        step: Int,
+        min: Int,
+        max: Int,
+        assign: (Int) -> Unit,
+    ) {
+        add(
+            GlbStepper(guiLeft + x, guiTop + y, w, initial.toFloat(), step.toFloat(), min.toFloat(), max.toFloat(), { ctx.fmt(it, 0) }) { value ->
+                assign(value.toInt())
+                ctx.applyStats()
+            },
+        )
+    }
+
+    protected fun statsStepperF(
+        x: Int,
+        y: Int,
+        w: Int,
+        initial: Float,
+        step: Float,
+        min: Float,
+        max: Float,
+        decimals: Int,
+        assign: (Float) -> Unit,
+    ) {
+        add(
+            GlbStepper(guiLeft + x, guiTop + y, w, initial, step, min, max, { ctx.fmt(it, decimals) }) { value ->
+                assign(value)
+                ctx.applyStats()
+            },
+        )
+    }
+
+    protected fun statsToggle(x: Int, y: Int, w: Int, initial: Boolean, assign: (Boolean) -> Unit) {
+        add(
+            GlbToggleYesNo(guiLeft + x, guiTop + y, w, initial) { value ->
+                assign(value)
+                ctx.applyStats()
+            },
+        )
+    }
+
+    protected fun statsCycle(x: Int, y: Int, w: Int, options: Array<String>, initial: Int, assign: (Int) -> Unit) {
+        add(
+            GlbCycleButton(guiLeft + x, guiTop + y, w, options, initial.coerceIn(0, options.lastIndex)) { index ->
+                assign(index)
+                ctx.applyStats()
+            },
+        )
+    }
+
     // --- placeholder controls (CNPC buttons we do not implement) ---
 
     protected fun stubButton(x: Int, y: Int, w: Int, text: String) {

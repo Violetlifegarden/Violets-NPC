@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.npc
 
+import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.ai.goal.AvoidEntityGoal
 import net.minecraft.world.entity.ai.goal.Goal
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
@@ -162,11 +163,166 @@ class GlbGuardTargetGoal(private val npc: GlbNpc) : NearestAttackableTargetGoal<
 
 /**
  * Chases and melee-hits the NPC's current attack target while [GlbNpcConfig.profession] is
- * [GlbNpcConfig.PROFESSION_GUARD] — the execution half of the guard profession (CustomNPC's generic melee attack goal,
- * which is only live once a target is set by [GlbGuardTargetGoal]). Damage comes from the `ATTACK_DAMAGE` attribute
- * registered on [GlbNpc]. Holds MOVE+LOOK+JUMP, so it is outranked by [GlbSitGoal] (a sitting guard stays put).
+ * [GlbNpcConfig.PROFESSION_GUARD] and the Stats attack type is [GlbNpcStats.ATTACK_MELEE] — the execution half of the
+ * guard profession (CustomNPC's generic melee attack goal, which is only live once a target is set by
+ * [GlbGuardTargetGoal]). Damage comes from the `ATTACK_DAMAGE` attribute; [GlbNpcStats.meleeSpeed] drives our own
+ * cooldown and [GlbNpcStats.meleeRange] replaces vanilla's bounding-box reach. Holds MOVE+LOOK+JUMP, so it is
+ * outranked by [GlbSitGoal] (a sitting guard stays put).
  */
 class GlbGuardAttackGoal(private val npc: GlbNpc) : MeleeAttackGoal(npc, 1.2, true) {
-    override fun canUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canUse()
-    override fun canContinueToUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canContinueToUse()
+
+    private var cooldownTicks = 0
+
+    override fun canUse(): Boolean =
+        npc.config.profession == GlbNpcConfig.PROFESSION_GUARD &&
+            npc.config.stats.attackType == GlbNpcStats.ATTACK_MELEE && super.canUse()
+
+    override fun canContinueToUse(): Boolean =
+        npc.config.profession == GlbNpcConfig.PROFESSION_GUARD &&
+            npc.config.stats.attackType == GlbNpcStats.ATTACK_MELEE && super.canContinueToUse()
+
+    override fun start() {
+        super.start()
+        cooldownTicks = 0
+    }
+
+    override fun stop() {
+        super.stop()
+        cooldownTicks = 0
+    }
+
+    override fun tick() {
+        if (cooldownTicks > 0) cooldownTicks--
+        super.tick()
+    }
+
+    // The vanilla cooldown field is private and fixed at 20 ticks; `isTimeToAttack` is the supported hook, so the
+    // configurable interval lives in our own counter and the vanilla one is left at its default (always ready).
+    override fun isTimeToAttack(): Boolean = cooldownTicks <= 0
+
+    override fun resetAttackCooldown() {
+        super.resetAttackCooldown()
+        cooldownTicks = npc.config.stats.meleeSpeed
+    }
+
+    override fun canPerformAttack(target: LivingEntity): Boolean {
+        if (!isTimeToAttack()) return false
+        val range = npc.config.stats.meleeRange.toDouble()
+        return npc.distanceToSqr(target) <= range * range && npc.sensing.hasLineOfSight(target)
+    }
+}
+
+/**
+ * Chases the target into firing range and shoots vanilla arrows while the Stats attack type is
+ * [GlbNpcStats.ATTACK_RANGED]. Timing/counts come from the Stats block (min/max delay, burst count/delay, shots per
+ * volley); [GlbNpcStats.rangedIndirect] relaxes the line-of-sight requirement for indirect fire. Only one ranged
+ * guard can exist per NPC and it never runs alongside [GlbGuardAttackGoal], because the attack type gates both.
+ */
+class GlbRangedAttackGoal(private val npc: GlbNpc) : Goal() {
+
+    init {
+        setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK))
+    }
+
+    private var cooldown = 0
+    private var burstLeft = 1
+    private var repathCooldown = 0
+
+    override fun canUse(): Boolean {
+        if (!rangedGuard()) return false
+        val target = npc.target ?: return false
+        return target.isAlive && npc.distanceToSqr(target) <= aggroRangeSq()
+    }
+
+    override fun canContinueToUse(): Boolean {
+        if (!rangedGuard()) return false
+        val target = npc.target ?: return false
+        return target.isAlive && npc.distanceToSqr(target) <= aggroRangeSq()
+    }
+
+    override fun start() {
+        burstLeft = npc.config.stats.rangedBurstCount
+        cooldown = randomDelay()
+        repathCooldown = 0
+    }
+
+    override fun stop() {
+        npc.navigation.stop()
+    }
+
+    override fun requiresUpdateEveryTick(): Boolean = true
+
+    override fun tick() {
+        val target = npc.target ?: return
+        val stats = npc.config.stats
+        npc.lookControl.setLookAt(target, 30f, 30f)
+
+        val distanceSq = npc.distanceToSqr(target)
+        val range = stats.rangedRange.toDouble()
+        val inRange = distanceSq <= range * range
+        val outsideDeadzone = stats.rangedMeleeDistance <= 0 ||
+            distanceSq > stats.rangedMeleeDistance.toDouble() * stats.rangedMeleeDistance
+
+        if (!inRange) {
+            chase(target)
+            return
+        }
+        // In range but too close, or without a firing window: hold position instead of walking into the target.
+        npc.navigation.stop()
+        if (!outsideDeadzone || !hasFiringWindow(target, stats, distanceSq)) return
+        if (cooldown > 0) {
+            cooldown--
+            return
+        }
+        fireVolley(target, stats)
+        if (burstLeft > 1) {
+            burstLeft--
+            cooldown = stats.rangedBurstDelay
+        } else {
+            burstLeft = stats.rangedBurstCount
+            cooldown = randomDelay()
+        }
+    }
+
+    private fun rangedGuard(): Boolean =
+        npc.config.profession == GlbNpcConfig.PROFESSION_GUARD &&
+            npc.config.stats.attackType == GlbNpcStats.ATTACK_RANGED
+
+    private fun aggroRangeSq(): Double {
+        val range = npc.config.stats.aggroRange.toDouble()
+        return range * range
+    }
+
+    private fun chase(target: LivingEntity) {
+        if (repathCooldown-- > 0) return
+        repathCooldown = REPATH_INTERVAL
+        npc.navigation.moveTo(target, SPEED)
+    }
+
+    /** Direct sight is required unless the indirect mode allows lobbing shots over cover. */
+    private fun hasFiringWindow(target: LivingEntity, stats: GlbNpcStats, distanceSq: Double): Boolean {
+        if (npc.sensing.hasLineOfSight(target)) return true
+        return when (stats.rangedIndirect) {
+            GlbNpcStats.RANGED_INDIRECT_HIDDEN -> true
+            GlbNpcStats.RANGED_INDIRECT_DISTANT -> {
+                val half = stats.rangedRange / 2.0
+                distanceSq > half * half
+            }
+            else -> false
+        }
+    }
+
+    private fun fireVolley(target: LivingEntity, stats: GlbNpcStats) {
+        repeat(stats.rangedShotCount) { npc.performRangedAttack(target, stats.rangedSpeed / 10f) }
+    }
+
+    private fun randomDelay(): Int {
+        val stats = npc.config.stats
+        return stats.rangedMinDelay + npc.random.nextInt(stats.rangedMaxDelay - stats.rangedMinDelay + 1)
+    }
+
+    companion object {
+        private const val SPEED = 1.0
+        private const val REPATH_INTERVAL = 10
+    }
 }

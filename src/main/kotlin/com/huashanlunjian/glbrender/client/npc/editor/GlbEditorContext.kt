@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.client.npc.editor
 
+import com.huashanlunjian.glbrender.npc.GlbNpcStats
 import net.minecraft.client.gui.Font
 
 /**
@@ -72,6 +73,15 @@ interface GlbEditorContext {
 
     /** Commit the current transform/behavior values to the server (one SetConfigPacket). */
     fun applyConfig()
+
+    /** The NPC's Stats block (a local editable copy); call [applyStats] after changing a field. */
+    val stats: GlbNpcStats
+
+    /** Commit [stats] to the server (one SetStatsPacket). */
+    fun applyStats()
+
+    /** Open a Stats sub-screen for [section] (`GlbStatsSubScreen.SECTION_*`); the editor returns on close. */
+    fun openStatsSub(section: Int)
 
     fun fmt(value: Float, decimals: Int): String
 }

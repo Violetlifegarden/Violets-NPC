@@ -7,6 +7,7 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorContext
 import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbGlobalTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbInventoryTab
+import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
 import com.huashanlunjian.glbrender.client.npc.preview.GlbPreviewScreen
@@ -14,8 +15,10 @@ import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.huashanlunjian.glbrender.npc.GlbNpcMenu
+import com.huashanlunjian.glbrender.npc.GlbNpcStats
 import com.huashanlunjian.glbrender.npc.net.SetConfigPacket
 import com.huashanlunjian.glbrender.npc.net.SetModelPacket
+import com.huashanlunjian.glbrender.npc.net.SetStatsPacket
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.Button
@@ -38,7 +41,12 @@ import java.util.Locale
  * [AbstractContainerScreen] over [GlbNpcMenu] so the server-side `stillValid` gate and the editing-session close
  * keep working — the container draws no slots here.
  */
-class GlbNpcEditorScreen(menu: GlbNpcMenu, private val editorInventory: Inventory, title: Component) :
+class GlbNpcEditorScreen(
+    menu: GlbNpcMenu,
+    private val editorInventory: Inventory,
+    title: Component,
+    statsSeed: GlbNpcStats? = null,
+) :
     AbstractContainerScreen<GlbNpcMenu>(menu, editorInventory, title), GlbEditorContext {
 
     override val npcId: Int? = menu.npc?.id
@@ -66,6 +74,12 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, private val editorInventory: Inventor
     override var clip: String = menu.npc?.config?.clip ?: ""
     override var dropChances: String = menu.npc?.config?.dropChances ?: GlbNpcConfig.DEFAULT_DROP_CHANCES
     override var displayName: String = menu.npc?.customName?.string ?: ""
+
+    /**
+     * Local editable Stats copy. Seeded from the synced block, or handed back by a returning sub-screen so an edit
+     * whose echo has not arrived yet is not visually rolled back.
+     */
+    override var stats: GlbNpcStats = statsSeed ?: menu.npc?.config?.stats?.copyStats() ?: GlbNpcStats()
 
     private var currentTab = TAB_DISPLAY
 
@@ -173,7 +187,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, private val editorInventory: Inventor
             GlbPreviewScreen(menu.npc, id, clip, menu.npc?.bbHeight ?: 1.8f) {
                 // Rebuild the editor over the same menu (and the same still-open server session) on the way back;
                 // if the NPC despawned in the meantime, closing to the game is the only safe destination.
-                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title) else null
+                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats) else null
             },
         )
     }
@@ -198,6 +212,20 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, private val editorInventory: Inventor
                 id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, profession, onAttack, displayName,
                 maxHealth, glowing, tint, dialogs, clip, materialMode, dropChances,
             ),
+        )
+    }
+
+    override fun applyStats() {
+        val id = npcId ?: return
+        PacketDistributor.sendToServer(SetStatsPacket(id, stats.copyStats()))
+    }
+
+    override fun openStatsSub(section: Int) {
+        keepMenuOnClose = true
+        minecraft?.setScreen(
+            GlbStatsSubScreen(section, stats, { applyStats() }) {
+                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats) else null
+            },
         )
     }
 

@@ -159,6 +159,30 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         dropChances = withDropChance(dropChances, index, value)
     }
 
+    /**
+     * The Stats-tab block as one synced compound (see [GlbNpcStats]). Reads are cached by tag identity so the gameplay
+     * hooks can call this every tick without re-parsing the tag; the returned instance is the live cached object, so
+     * write changes through this property (`config.stats = config.stats.copyStats().also { … }`), not by mutating it.
+     */
+    var stats: GlbNpcStats
+        get() {
+            val tag = npc.entityData.get(DATA_STATS)
+            if (tag !== statsCacheTag) {
+                statsCacheTag = tag
+                statsCache = GlbNpcStats.fromTag(tag)
+            }
+            return statsCache!!
+        }
+        set(value) {
+            val tag = value.toTag()
+            statsCacheTag = tag
+            statsCache = value
+            npc.entityData.set(DATA_STATS, tag)
+        }
+
+    private var statsCacheTag: CompoundTag? = null
+    private var statsCache: GlbNpcStats? = null
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -187,6 +211,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putString(KEY_CLIP, clip)
         tag.putInt(KEY_MATERIAL_MODE, materialMode)
         tag.putString(KEY_DROP_CHANCES, dropChances)
+        tag.put(KEY_STATS, stats.toTag())
         return tag
     }
 
@@ -214,6 +239,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             else -> MATERIAL_PBR
         }
         dropChances = if (tag.contains(KEY_DROP_CHANCES)) tag.getString(KEY_DROP_CHANCES) else DEFAULT_DROP_CHANCES
+        if (tag.contains(KEY_STATS)) stats = GlbNpcStats.fromTag(tag.getCompound(KEY_STATS)).coerced()
     }
 
     companion object {
@@ -251,6 +277,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
         private val DATA_DROP_CHANCES: EntityDataAccessor<String> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
+        private val DATA_STATS: EntityDataAccessor<CompoundTag> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.COMPOUND_TAG)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -269,6 +297,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_CLIP = "GlbClip"
         private const val KEY_MATERIAL_MODE = "GlbMaterialMode"
         private const val KEY_DROP_CHANCES = "GlbDropChances"
+        private const val KEY_STATS = "GlbStats"
         /** Read-only migration key from when this field was a Boolean. */
         private const val KEY_PBR_LEGACY = "GlbPbr"
 
@@ -357,6 +386,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_CLIP, "")
             builder.define(DATA_MATERIAL_MODE, MATERIAL_PBR)
             builder.define(DATA_DROP_CHANCES, DEFAULT_DROP_CHANCES)
+            builder.define(DATA_STATS, GlbNpcStats().toTag())
         }
     }
 }
