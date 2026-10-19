@@ -52,6 +52,12 @@ interface GlbEditorContext {
     /** Forced animation clip name for editor preview; empty = the normal locomotion state machine. */
     var clip: String
 
+    /**
+     * Per-loot-slot death-drop percentages as one `|`-separated string (CustomNPC `DataInventory.dropchance`).
+     * The server canonicalizes it: one entry per loot slot, each clamped to `0..100`.
+     */
+    var dropChances: String
+
     /** The clip names the NPC's current model carries, for the preview cycle (empty while the scene loads). */
     fun clipNames(): List<String>
 

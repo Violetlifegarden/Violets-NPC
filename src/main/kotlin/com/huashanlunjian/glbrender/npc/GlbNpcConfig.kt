@@ -4,6 +4,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.syncher.EntityDataAccessor
 import net.minecraft.network.syncher.EntityDataSerializers
 import net.minecraft.network.syncher.SynchedEntityData
+import java.util.Locale
 
 /**
  * Per-instance NPC configuration, in TouhouLittleMaid's `MaidConfigManager` / CustomNPC's `Data*` shape: one class
@@ -142,6 +143,25 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_MATERIAL_MODE)
         set(value) = npc.entityData.set(DATA_MATERIAL_MODE, value.coerceIn(MATERIAL_PBR, MATERIAL_UNLIT))
 
+    /**
+     * Per-loot-slot death-drop percentages, one `|`-separated value each in `0..100` (CustomNPC `DataInventory`
+     * `dropchance`, default 100). The setter canonicalizes the string (see [normalizeDropChances]) so a synced value
+     * always has exactly [GlbNpcInventory.LOOT_SLOTS] entries and every consumer can index it blindly.
+     */
+    var dropChances: String
+        get() = npc.entityData.get(DATA_DROP_CHANCES)
+        set(value) = npc.entityData.set(DATA_DROP_CHANCES, normalizeDropChances(value))
+
+    /** The death-drop percentage for loot slot [index], already normalized to `0..100`. */
+    fun dropChance(index: Int): Float = dropChanceOf(dropChances, index)
+
+    fun setDropChance(index: Int, value: Float) {
+        if (index !in 0 until GlbNpcInventory.LOOT_SLOTS) return
+        val values = parseDropChances(dropChances).toMutableList()
+        values[index] = normalizeChance(value)
+        dropChances = values.joinToString("|") { formatChance(it) }
+    }
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -169,6 +189,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putString(KEY_DIALOGS, dialogs)
         tag.putString(KEY_CLIP, clip)
         tag.putInt(KEY_MATERIAL_MODE, materialMode)
+        tag.putString(KEY_DROP_CHANCES, dropChances)
         return tag
     }
 
@@ -195,6 +216,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
                 if (tag.getBoolean(KEY_PBR_LEGACY)) MATERIAL_PBR else MATERIAL_VANILLA
             else -> MATERIAL_PBR
         }
+        dropChances = if (tag.contains(KEY_DROP_CHANCES)) tag.getString(KEY_DROP_CHANCES) else DEFAULT_DROP_CHANCES
     }
 
     companion object {
@@ -230,6 +252,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
         private val DATA_MATERIAL_MODE: EntityDataAccessor<Int> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.INT)
+        private val DATA_DROP_CHANCES: EntityDataAccessor<String> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -247,6 +271,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_DIALOGS = "GlbDialogs"
         private const val KEY_CLIP = "GlbClip"
         private const val KEY_MATERIAL_MODE = "GlbMaterialMode"
+        private const val KEY_DROP_CHANCES = "GlbDropChances"
         /** Read-only migration key from when this field was a Boolean. */
         private const val KEY_PBR_LEGACY = "GlbPbr"
 
@@ -270,6 +295,35 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         const val MATERIAL_PBR = 0
         const val MATERIAL_VANILLA = 1
         const val MATERIAL_UNLIT = 2
+
+        /** CustomNPC's drop-chance default and upper bound: a filled loot slot drops on every death. */
+        const val DEFAULT_DROP_CHANCE = 100.0f
+
+        /** Canonical all-default drop-chance string (one entry per loot slot). */
+        val DEFAULT_DROP_CHANCES: String =
+            (0 until GlbNpcInventory.LOOT_SLOTS).joinToString("|") { formatChance(DEFAULT_DROP_CHANCE) }
+
+        /**
+         * Canonicalizes a raw `|`-separated drop-chance string: pads/truncates to [GlbNpcInventory.LOOT_SLOTS] entries,
+         * clamps each to `0..100`, and formats with one decimal. Used by the synced setter so every reader (death drops,
+         * editor) sees the same shape.
+         */
+        fun normalizeDropChances(raw: String): String =
+            parseDropChances(raw).joinToString("|") { formatChance(it) }
+
+        private fun parseDropChances(raw: String): List<Float> {
+            val parts = raw.split('|')
+            return (0 until GlbNpcInventory.LOOT_SLOTS).map { index ->
+                normalizeChance(parts.getOrNull(index)?.trim()?.toFloatOrNull() ?: DEFAULT_DROP_CHANCE)
+            }
+        }
+
+        private fun dropChanceOf(raw: String, index: Int): Float = parseDropChances(raw)[index]
+
+        private fun normalizeChance(value: Float): Float =
+            if (value.isNaN()) DEFAULT_DROP_CHANCE else value.coerceIn(0.0f, 100.0f)
+
+        private fun formatChance(value: Float): String = "%.1f".format(Locale.ROOT, value)
 
         /**
          * Forces this companion to initialize, running the [SynchedEntityData.defineId] registrations above. Called
@@ -295,6 +349,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_DIALOGS, "")
             builder.define(DATA_CLIP, "")
             builder.define(DATA_MATERIAL_MODE, MATERIAL_PBR)
+            builder.define(DATA_DROP_CHANCES, DEFAULT_DROP_CHANCES)
         }
     }
 }

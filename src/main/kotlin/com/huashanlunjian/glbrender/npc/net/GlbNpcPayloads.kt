@@ -85,6 +85,7 @@ data class SetConfigPacket(
     val dialogs: String,
     val clip: String,
     val materialMode: Int,
+    val dropChances: String,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -112,6 +113,7 @@ data class SetConfigPacket(
                 buf.writeUtf(packet.dialogs, MAX_DIALOG)
                 buf.writeUtf(packet.clip, MAX_CLIP)
                 buf.writeVarInt(packet.materialMode)
+                buf.writeUtf(packet.dropChances, MAX_DROP_CHANCES)
             },
             { buf ->
                 SetConfigPacket(
@@ -132,6 +134,7 @@ data class SetConfigPacket(
                     buf.readUtf(MAX_DIALOG),
                     buf.readUtf(MAX_CLIP),
                     buf.readVarInt(),
+                    buf.readUtf(MAX_DROP_CHANCES),
                 )
             },
         )
@@ -180,6 +183,8 @@ data class SetConfigPacket(
                     GlbNpcConfig.MATERIAL_PBR,
                     GlbNpcConfig.MATERIAL_UNLIT,
                 )
+                // Setter canonicalizes: pads to one entry per loot slot and clamps each percentage to 0..100.
+                config.dropChances = packet.dropChances
             }
         }
 
@@ -188,6 +193,7 @@ data class SetConfigPacket(
         private const val MAX_NAME = 64
         private const val MAX_DIALOG = 1024
         private const val MAX_CLIP = 128
+        private const val MAX_DROP_CHANCES = 128
         private const val MIN_HEALTH = 1.0f
         private const val MAX_HEALTH = 512.0f
     }

@@ -4,19 +4,25 @@ import com.huashanlunjian.glbrender.npc.net.GlbNpcEditing
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
 import net.minecraft.server.level.ServerPlayer
+import net.minecraft.util.Mth
+import net.minecraft.world.ContainerHelper
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
 import net.minecraft.world.MenuProvider
+import net.minecraft.world.SimpleContainer
+import net.minecraft.world.damagesource.DamageSource
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.PathfinderMob
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.goal.FloatGoal
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
+import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.network.syncher.SynchedEntityData
+import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 
 /**
@@ -32,6 +38,13 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
 
     /** Per-instance config: synced data + NBT + typed getters/setters. Initialized after super() (entityData exists). */
     val config = GlbNpcConfig(this)
+
+    /**
+     * Projectile + nine "NPC Inventory" drop slots, in [GlbNpcInventory]'s storage order. The hands and armor are not
+     * here: they live in the vanilla equipment slots (see [GlbNpcEquipmentContainer]). The contents persist in NBT and
+     * are synced through the editor menu's slots while it is open.
+     */
+    val storage = SimpleContainer(GlbNpcInventory.STORAGE_SLOTS)
 
     /** The model id this NPC renders as; empty falls back to [GlbModels.defaultId] on the client. */
     var modelId: String
@@ -92,11 +105,48 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun addAdditionalSaveData(tag: CompoundTag) {
         super.addAdditionalSaveData(tag)
         config.save(tag)
+        val inventoryTag = CompoundTag()
+        ContainerHelper.saveAllItems(inventoryTag, storage.items, registryAccess())
+        tag.put(KEY_INVENTORY, inventoryTag)
     }
 
     override fun readAdditionalSaveData(tag: CompoundTag) {
         super.readAdditionalSaveData(tag)
         config.load(tag)
+        storage.clearContent()
+        if (tag.contains(KEY_INVENTORY)) {
+            ContainerHelper.loadAllItems(tag.getCompound(KEY_INVENTORY), storage.items, registryAccess())
+        }
+    }
+
+    /**
+     * Drop each non-empty "NPC Inventory" slot with its configured chance, matching CustomNPC's `DataInventory`
+     * behavior. Equipment (armor/hands) is left to the vanilla `Mob` death-drop path, which runs in `super.die`.
+     */
+    override fun die(damageSource: DamageSource) {
+        if (!level().isClientSide) dropConfiguredLoot()
+        super.die(damageSource)
+    }
+
+    private fun dropConfiguredLoot() {
+        val level = level()
+        for (index in 0 until GlbNpcInventory.LOOT_SLOTS) {
+            val storageIndex = GlbNpcInventory.LOOT_START + index
+            val stack = storage.getItem(storageIndex)
+            if (stack.isEmpty || random.nextFloat() * 100f >= config.dropChance(index)) continue
+            val dropped = stack.copy()
+            storage.setItem(storageIndex, ItemStack.EMPTY)
+            val itemEntity = ItemEntity(level, x, y - 0.3 + eyeHeight, z, dropped)
+            itemEntity.setPickUpDelay(40)
+            val speed = random.nextFloat() * 0.5f
+            val angle = random.nextFloat() * 2f * Math.PI.toFloat()
+            itemEntity.setDeltaMovement(
+                (-Mth.sin(angle) * speed).toDouble(),
+                0.2,
+                (Mth.cos(angle) * speed).toDouble(),
+            )
+            level.addFreshEntity(itemEntity)
+        }
     }
 
     override fun mobInteract(player: Player, hand: InteractionHand): InteractionResult {
@@ -158,5 +208,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
                 .add(Attributes.FOLLOW_RANGE, 16.0)
                 // Only consumed by the guard profession's melee goal (GlbGuardAttackGoal); harmless for other NPCs.
                 .add(Attributes.ATTACK_DAMAGE, 4.0)
+
+        private const val KEY_INVENTORY = "GlbInventory"
     }
 }

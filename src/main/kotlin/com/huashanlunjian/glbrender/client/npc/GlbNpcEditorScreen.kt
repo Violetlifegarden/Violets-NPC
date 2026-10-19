@@ -63,6 +63,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var materialMode: Int = GlbNpcConfig.MATERIAL_PBR
     override var dialogs: String = menu.npc?.config?.dialogs ?: ""
     override var clip: String = menu.npc?.config?.clip ?: ""
+    override var dropChances: String = menu.npc?.config?.dropChances ?: GlbNpcConfig.DEFAULT_DROP_CHANCES
     override var displayName: String = menu.npc?.customName?.string ?: ""
 
     private var currentTab = TAB_DISPLAY
@@ -97,6 +98,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         materialMode = config?.materialMode ?: GlbNpcConfig.MATERIAL_PBR
         dialogs = config?.dialogs ?: ""
         clip = config?.clip ?: ""
+        dropChances = config?.dropChances ?: GlbNpcConfig.DEFAULT_DROP_CHANCES
     }
 
     override fun init() {
@@ -164,7 +166,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         PacketDistributor.sendToServer(
             SetConfigPacket(
                 id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, profession, onAttack, displayName,
-                maxHealth, glowing, tint, dialogs, clip, materialMode,
+                maxHealth, glowing, tint, dialogs, clip, materialMode, dropChances,
             ),
         )
     }
