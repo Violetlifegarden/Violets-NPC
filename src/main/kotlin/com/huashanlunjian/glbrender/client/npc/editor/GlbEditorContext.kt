@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.client.npc.editor
 
+import com.huashanlunjian.glbrender.npc.GlbNpcAi
 import com.huashanlunjian.glbrender.npc.GlbNpcStats
 import net.minecraft.client.gui.Font
 
@@ -82,6 +83,15 @@ interface GlbEditorContext {
 
     /** Open a Stats sub-screen for [section] (`GlbStatsSubScreen.SECTION_*`); the editor returns on close. */
     fun openStatsSub(section: Int)
+
+    /** The NPC's AI block (door/shelter/water/return/leap/mount + movement); call [applyAi] after changing a field. */
+    val ai: GlbNpcAi
+
+    /** Commit [ai] to the server (one SetAiPacket). */
+    fun applyAi()
+
+    /** Open the detached Movement sub-screen (moving type, range, speed); the editor returns on close. */
+    fun openMovementSub()
 
     fun fmt(value: Float, decimals: Int): String
 }

@@ -174,6 +174,44 @@ abstract class GlbEditorTab(protected val ctx: GlbEditorContext) {
         )
     }
 
+    // --- functional AI controls (the GlbNpcAi block; each change commits a SetAiPacket) ---
+
+    protected fun aiStepper(
+        x: Int,
+        y: Int,
+        w: Int,
+        initial: Int,
+        step: Int,
+        min: Int,
+        max: Int,
+        assign: (Int) -> Unit,
+    ) {
+        add(
+            GlbStepper(guiLeft + x, guiTop + y, w, initial.toFloat(), step.toFloat(), min.toFloat(), max.toFloat(), { ctx.fmt(it, 0) }) { value ->
+                assign(value.toInt())
+                ctx.applyAi()
+            },
+        )
+    }
+
+    protected fun aiToggle(x: Int, y: Int, w: Int, initial: Boolean, assign: (Boolean) -> Unit) {
+        add(
+            GlbToggleYesNo(guiLeft + x, guiTop + y, w, initial) { value ->
+                assign(value)
+                ctx.applyAi()
+            },
+        )
+    }
+
+    protected fun aiCycle(x: Int, y: Int, w: Int, options: Array<String>, initial: Int, assign: (Int) -> Unit) {
+        add(
+            GlbCycleButton(guiLeft + x, guiTop + y, w, options, initial.coerceIn(0, options.lastIndex)) { index ->
+                assign(index)
+                ctx.applyAi()
+            },
+        )
+    }
+
     // --- placeholder controls (CNPC buttons we do not implement) ---
 
     protected fun stubButton(x: Int, y: Int, w: Int, text: String) {

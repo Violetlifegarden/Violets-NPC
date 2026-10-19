@@ -7,15 +7,18 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorContext
 import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbGlobalTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbInventoryTab
+import com.huashanlunjian.glbrender.client.npc.editor.GlbMovementSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
 import com.huashanlunjian.glbrender.client.npc.preview.GlbPreviewScreen
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
+import com.huashanlunjian.glbrender.npc.GlbNpcAi
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.huashanlunjian.glbrender.npc.GlbNpcMenu
 import com.huashanlunjian.glbrender.npc.GlbNpcStats
+import com.huashanlunjian.glbrender.npc.net.SetAiPacket
 import com.huashanlunjian.glbrender.npc.net.SetConfigPacket
 import com.huashanlunjian.glbrender.npc.net.SetModelPacket
 import com.huashanlunjian.glbrender.npc.net.SetStatsPacket
@@ -46,6 +49,8 @@ class GlbNpcEditorScreen(
     private val editorInventory: Inventory,
     title: Component,
     statsSeed: GlbNpcStats? = null,
+    aiSeed: GlbNpcAi? = null,
+    private val wanderSeed: Boolean? = null,
 ) :
     AbstractContainerScreen<GlbNpcMenu>(menu, editorInventory, title), GlbEditorContext {
 
@@ -81,6 +86,12 @@ class GlbNpcEditorScreen(
      */
     override var stats: GlbNpcStats = statsSeed ?: menu.npc?.config?.stats?.copyStats() ?: GlbNpcStats()
 
+    /**
+     * Local editable AI copy. Seeded like [stats], and handed back by the Movement sub-screen so an edit whose echo has
+     * not arrived yet is not visually rolled back.
+     */
+    override var ai: GlbNpcAi = aiSeed ?: menu.npc?.config?.ai?.copyAi() ?: GlbNpcAi()
+
     private var currentTab = TAB_DISPLAY
 
     /**
@@ -108,7 +119,7 @@ class GlbNpcEditorScreen(
         scale = config?.scale?.takeUnless { it.isNaN() } ?: d?.scale ?: 1.0f
         yawOffset = config?.yawOffset?.takeUnless { it.isNaN() } ?: d?.yawOffset ?: 0.0f
         groundOffsetY = config?.groundOffsetY?.takeUnless { it.isNaN() } ?: d?.groundOffsetY ?: 0.0f
-        wander = config?.wander ?: true
+        wander = wanderSeed ?: config?.wander ?: true
         followOwner = config?.followOwner ?: false
         sit = config?.sit ?: false
         lookPlayer = config?.lookPlayer ?: true
@@ -187,7 +198,7 @@ class GlbNpcEditorScreen(
             GlbPreviewScreen(menu.npc, id, clip, menu.npc?.bbHeight ?: 1.8f) {
                 // Rebuild the editor over the same menu (and the same still-open server session) on the way back;
                 // if the NPC despawned in the meantime, closing to the game is the only safe destination.
-                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats) else null
+                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander) else null
             },
         )
     }
@@ -220,11 +231,37 @@ class GlbNpcEditorScreen(
         PacketDistributor.sendToServer(SetStatsPacket(id, stats.copyStats()))
     }
 
+    override fun applyAi() {
+        val id = npcId ?: return
+        PacketDistributor.sendToServer(SetAiPacket(id, ai.copyAi()))
+    }
+
     override fun openStatsSub(section: Int) {
         keepMenuOnClose = true
         minecraft?.setScreen(
             GlbStatsSubScreen(section, stats, { applyStats() }) {
-                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats) else null
+                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander) else null
+            },
+        )
+    }
+
+    override fun openMovementSub() {
+        keepMenuOnClose = true
+        minecraft?.setScreen(
+            GlbMovementSubScreen(
+                ai,
+                wander,
+                { applyAi() },
+                { value ->
+                    wander = value
+                    applyConfig()
+                },
+            ) {
+                if (menu.npc?.isRemoved == false) {
+                    GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander)
+                } else {
+                    null
+                }
             },
         )
     }
