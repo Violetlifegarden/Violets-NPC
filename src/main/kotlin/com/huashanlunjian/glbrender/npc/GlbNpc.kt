@@ -1,6 +1,7 @@
 package com.huashanlunjian.glbrender.npc
 
 import com.huashanlunjian.glbrender.npc.net.GlbNpcEditing
+import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
 import net.minecraft.server.level.ServerPlayer
@@ -22,6 +23,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.goal.FloatGoal
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
+import net.minecraft.world.entity.ai.navigation.GroundPathNavigation
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.monster.RangedAttackMob
 import net.minecraft.world.entity.player.Inventory
@@ -35,6 +37,7 @@ import net.minecraft.world.item.Items
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.pathfinder.PathType
 import net.minecraft.world.phys.Vec3
 
 /**
@@ -79,8 +82,17 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
             config.modelId = value
         }
 
-    /** Whether the server-only attributes have been pushed once from the (synced) config on this entity. */
-    private var statsApplied = false
+    /** Whether the server-only attributes and AI state have been pushed once from the (synced) config on this entity. */
+    private var initialApplied = false
+
+    /** The NPC's home position (CustomNPC `DataAI.startPos`), captured on the first server tick unless loaded. */
+    private var homePos: BlockPos = BlockPos.ZERO
+
+    /** Whether [homePos] is meaningful; false only between construction and the first server tick / NBT load. */
+    private var homeSet = false
+
+    /** Whether [travel] currently has the mount-control step-height boost applied. */
+    private var mountStepBoost = false
 
     /** Game tick at which a dead NPC may respawn (0 = no pending respawn). */
     private var respawnAt = 0L
@@ -107,10 +119,11 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         // The attributes are server-only and not restored from our synced mirrors on world load, so apply them once
         // on the entity's first server tick — this covers both reload-from-NBT and a fresh summon. Later edits
         // re-apply directly from the packet handlers.
-        if (!statsApplied) {
-            statsApplied = true
+        if (!initialApplied) {
+            initialApplied = true
             applyMaxHealth()
             applyStats()
+            applyAi()
             return
         }
         tickRegen()
@@ -132,6 +145,27 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         getAttribute(Attributes.FOLLOW_RANGE)?.baseValue = stats.aggroRange.toDouble()
         getAttribute(Attributes.ATTACK_DAMAGE)?.baseValue = stats.meleeStrength.toDouble()
         getAttribute(Attributes.ATTACK_KNOCKBACK)?.baseValue = stats.meleeKnockback.toDouble()
+    }
+
+    /**
+     * Push the AI block onto the navigation/attributes it owns, mirroring CustomNPC's `doorInteractType` /
+     * `avoidsWater` / `setWalkingSpeed` / return-home setup. Idempotent, server-only: called once on the first server
+     * tick and again from every [com.huashanlunjian.glbrender.npc.net.SetAiPacket].
+     */
+    fun applyAi() {
+        if (level().isClientSide) return
+        val ai = config.ai
+        // CNPC enables door pathing for both Break and Open; Disabled leaves the navigation door-blind.
+        (navigation as? GroundPathNavigation)?.setCanOpenDoors(ai.doorMode != GlbNpcAi.DOOR_DISABLED)
+        // CNPC toggles the water malus between "impassable" (-1) and vanilla's neutral value (0).
+        setPathfindingMalus(PathType.WATER, if (ai.avoidsWater) -1f else 0f)
+        getAttribute(Attributes.MOVEMENT_SPEED)?.baseValue = ai.movementSpeed()
+        // The home anchor is captured once (at spawn) and kept in NBT, like CNPC's startPos.
+        if (!homeSet) {
+            homePos = blockPosition()
+            homeSet = true
+        }
+        if (ai.returnToStart) restrictTo(homePos, ai.walkingRange) else clearRestriction()
     }
 
     /** CustomNPC's regen cadence: once per second, either out-of-combat or in-combat regen, never both. */
@@ -161,12 +195,20 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         // when profession==GUARD and a target is set below.
         goalSelector.addGoal(2, GlbGuardAttackGoal(this))
         goalSelector.addGoal(2, GlbRangedAttackGoal(this))
-        goalSelector.addGoal(3, GlbPanicGoal(this))
-        goalSelector.addGoal(4, GlbFleeGoal(this))
-        goalSelector.addGoal(5, GlbFollowPlayerGoal(this))
-        goalSelector.addGoal(6, GlbWanderGoal(this))
-        goalSelector.addGoal(7, GlbLookPlayerGoal(this))
-        goalSelector.addGoal(8, RandomLookAroundGoal(this))
+        goalSelector.addGoal(3, GlbLeapGoal(this))
+        goalSelector.addGoal(4, GlbPanicGoal(this))
+        goalSelector.addGoal(5, GlbFleeGoal(this))
+        goalSelector.addGoal(6, GlbFollowPlayerGoal(this))
+        goalSelector.addGoal(7, GlbReturnHomeGoal(this))
+        // Door goals only trigger while the path's current node is a door, so they can sit under the movement goals.
+        goalSelector.addGoal(8, GlbOpenDoorGoal(this))
+        goalSelector.addGoal(8, GlbBreakDoorGoal(this))
+        goalSelector.addGoal(9, GlbIndoorShelterGoal(this))
+        goalSelector.addGoal(9, GlbSunShelterGoal(this))
+        goalSelector.addGoal(9, GlbRestrictSunGoal(this))
+        goalSelector.addGoal(10, GlbWanderGoal(this))
+        goalSelector.addGoal(11, GlbLookPlayerGoal(this))
+        goalSelector.addGoal(12, RandomLookAroundGoal(this))
         // The guard's target acquisition lives in the target selector; it sets getTarget() for the melee goal above.
         targetSelector.addGoal(1, GlbGuardTargetGoal(this))
     }
@@ -174,6 +216,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun addAdditionalSaveData(tag: CompoundTag) {
         super.addAdditionalSaveData(tag)
         config.save(tag)
+        if (homeSet) tag.putLong(KEY_HOME, homePos.asLong())
         val inventoryTag = CompoundTag()
         ContainerHelper.saveAllItems(inventoryTag, storage.items, registryAccess())
         tag.put(KEY_INVENTORY, inventoryTag)
@@ -182,6 +225,10 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     override fun readAdditionalSaveData(tag: CompoundTag) {
         super.readAdditionalSaveData(tag)
         config.load(tag)
+        if (tag.contains(KEY_HOME)) {
+            homePos = BlockPos.of(tag.getLong(KEY_HOME))
+            homeSet = true
+        }
         storage.clearContent()
         if (tag.contains(KEY_INVENTORY)) {
             ContainerHelper.loadAllItems(tag.getCompound(KEY_INVENTORY), storage.items, registryAccess())
@@ -365,6 +412,50 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         playSound(SoundEvents.SKELETON_SHOOT, 1.0f, 1.0f / (random.nextFloat() * 0.4f + 0.8f))
     }
 
+    // ---- Mount control (CustomNPC DataAI.mountControl) ----
+
+    /**
+     * With mount control on, the first passenger is the controlling passenger (vanilla's `Mob` version only accepts
+     * mobs that themselves can drive). Without it the NPC keeps vanilla's behavior, so a passenger cannot steer it.
+     */
+    override fun getControllingPassenger(): LivingEntity? =
+        if (configReady && config.ai.mountControl) passengers.firstOrNull() as? LivingEntity
+        else super.getControllingPassenger()
+
+    /**
+     * CustomNPC's rider-driven travel: face the rider's view, then move on the rider's forward/strafe input, with the
+     * step height raised so the NPC can climb a block while being ridden. Only the local instance steers from input —
+     * on the server the rider's `xxa`/`zza` are not populated and the vehicle position arrives in move-vehicle
+     * packets, mirroring vanilla horses — while the step-height boost is kept on both sides for pathing.
+     */
+    override fun travel(input: Vec3) {
+        val rider = if (configReady && config.ai.mountControl) getControllingPassenger() else null
+        if (rider == null) {
+            if (mountStepBoost) {
+                getAttribute(Attributes.STEP_HEIGHT)?.baseValue = DEFAULT_STEP_HEIGHT
+                mountStepBoost = false
+            }
+            super.travel(input)
+            return
+        }
+        if (!mountStepBoost) {
+            getAttribute(Attributes.STEP_HEIGHT)?.baseValue = MOUNT_STEP_HEIGHT
+            mountStepBoost = true
+        }
+        if (!isControlledByLocalInstance) {
+            super.travel(input)
+            return
+        }
+        setYRot(rider.yRot)
+        yRotO = yRot
+        setXRot(rider.xRot * 0.5f)
+        xRotO = xRot
+        yBodyRot = yRot
+        yHeadRot = yRot
+        val forward = if (rider.zza <= 0f) rider.zza * 0.25f else rider.zza
+        super.travel(Vec3((rider.xxa * 0.5f).toDouble(), input.y, forward.toDouble()))
+    }
+
     override fun mobInteract(player: Player, hand: InteractionHand): InteractionResult {
         if (hand != InteractionHand.MAIN_HAND) {
             return InteractionResult.PASS
@@ -440,6 +531,12 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         /** Degrees of arrow spread per missing accuracy point (60% accuracy = 10°). */
         private const val INACCURACY_PER_PERCENT = 0.25f
 
+        /** Vanilla's default step height, restored when nobody is riding the NPC. */
+        private const val DEFAULT_STEP_HEIGHT = 0.6
+        /** CNPC's step height while mount control is active. */
+        private const val MOUNT_STEP_HEIGHT = 1.1
+
         private const val KEY_INVENTORY = "GlbInventory"
+        private const val KEY_HOME = "GlbHome"
     }
 }

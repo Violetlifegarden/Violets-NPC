@@ -2,6 +2,7 @@ package com.huashanlunjian.glbrender.npc.net
 
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.GlbNpcAi
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.huashanlunjian.glbrender.npc.GlbNpcStats
 import com.mojang.logging.LogUtils
@@ -238,7 +239,44 @@ data class SetStatsPacket(val entityId: Int, val stats: GlbNpcStats) : CustomPac
     }
 }
 
-/** Registers the payloads on the mod bus. Called from [com.huashanlunjian.glbrender.GlbRenderContent.register] (both dists). */object GlbRenderNetwork {
+/**
+ * Replaces an NPC's whole AI block ([GlbNpcAi]). Like [SetStatsPacket] it travels as one compound and is clamped via
+ * [GlbNpcAi.coerced] before being stored and pushed onto navigation/attributes by [GlbNpc.applyAi].
+ */
+data class SetAiPacket(val entityId: Int, val ai: GlbNpcAi) : CustomPacketPayload {
+    override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
+
+    companion object {
+        val TYPE: CustomPacketPayload.Type<SetAiPacket> =
+            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath("glbrender", "set_ai"))
+
+        val STREAM_CODEC: StreamCodec<RegistryFriendlyByteBuf, SetAiPacket> = StreamCodec.of(
+            { buf, packet ->
+                buf.writeVarInt(packet.entityId)
+                buf.writeNbt(packet.ai.toTag())
+            },
+            { buf ->
+                SetAiPacket(buf.readVarInt(), GlbNpcAi.fromTag(buf.readNbt() ?: CompoundTag()))
+            },
+        )
+
+        fun handle(packet: SetAiPacket, context: IPayloadContext) {
+            context.enqueueWork {
+                val player = context.player() as? ServerPlayer ?: return@enqueueWork
+                val npc = player.level().getEntity(packet.entityId) as? GlbNpc ?: return@enqueueWork
+                if (!GlbNpcEditing.canEdit(player, npc)) {
+                    LOGGER.warn("glbrender: rejected set_ai for {} from {} (no editing session)", packet.entityId, player.name)
+                    return@enqueueWork
+                }
+                npc.config.ai = packet.ai.coerced()
+                npc.applyAi()
+            }
+        }
+    }
+}
+
+/** Registers the payloads on the mod bus. Called from [com.huashanlunjian.glbrender.GlbRenderContent.register] (both dists). */
+object GlbRenderNetwork {
     fun register(bus: IEventBus) {
         bus.addListener(
             EventPriority.NORMAL,
@@ -253,6 +291,9 @@ data class SetStatsPacket(val entityId: Int, val stats: GlbNpcStats) : CustomPac
                 }
                 registrar.playToServer(SetStatsPacket.TYPE, SetStatsPacket.STREAM_CODEC) { packet, context ->
                     SetStatsPacket.handle(packet, context)
+                }
+                registrar.playToServer(SetAiPacket.TYPE, SetAiPacket.STREAM_CODEC) { packet, context ->
+                    SetAiPacket.handle(packet, context)
                 }
             },
         )

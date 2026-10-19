@@ -1,15 +1,23 @@
 package com.huashanlunjian.glbrender.npc
 
+import net.minecraft.core.BlockPos
+import net.minecraft.world.Difficulty
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.ai.goal.AvoidEntityGoal
+import net.minecraft.world.entity.ai.goal.BreakDoorGoal
 import net.minecraft.world.entity.ai.goal.Goal
+import net.minecraft.world.entity.ai.goal.LeapAtTargetGoal
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal
-import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal
+import net.minecraft.world.entity.ai.goal.MoveTowardsRestrictionGoal
+import net.minecraft.world.entity.ai.goal.OpenDoorGoal
+import net.minecraft.world.entity.ai.goal.RestrictSunGoal
 import net.minecraft.world.entity.ai.goal.WaterAvoidingRandomStrollGoal
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal
 import net.minecraft.world.entity.monster.Monster
 import net.minecraft.world.entity.player.Player
 import java.util.EnumSet
+import java.util.function.Predicate
 
 /**
  * Self-gating NPC goals. Each checks the live [GlbNpcConfig] inside [canUse] rather than being added/removed from the
@@ -324,5 +332,158 @@ class GlbRangedAttackGoal(private val npc: GlbNpc) : Goal() {
     companion object {
         private const val SPEED = 1.0
         private const val REPATH_INTERVAL = 10
+    }
+}
+
+// ---- AI-tab goals (CustomNPC DataAI) ----
+// All of them self-gate on config.ai, like the other goals, so the door/shelter/return/leap switches take effect on
+// the next goal evaluation with no selector teardown.
+
+/** Opens doors along the path while the door mode is [GlbNpcAi.DOOR_OPEN] (closes them again after passing). */
+class GlbOpenDoorGoal(private val npc: GlbNpc) : OpenDoorGoal(npc, true) {
+    override fun canUse(): Boolean = npc.config.ai.doorMode == GlbNpcAi.DOOR_OPEN && super.canUse()
+    override fun canContinueToUse(): Boolean =
+        npc.config.ai.doorMode == GlbNpcAi.DOOR_OPEN && super.canContinueToUse()
+}
+
+/**
+ * Breaks doors along the path while the door mode is [GlbNpcAi.DOOR_BREAK] (zombie-style). Vanilla's own destruction
+ * gate (`mobGriefing` via [net.neoforged.neoforge.common.CommonHooks.canEntityDestroy]) still applies; the difficulty
+ * predicate accepts every difficulty because this is a world-builder toggle, not a mob difficulty feature.
+ */
+class GlbBreakDoorGoal(private val npc: GlbNpc) : BreakDoorGoal(npc, Predicate { true }) {
+    override fun canUse(): Boolean = npc.config.ai.doorMode == GlbNpcAi.DOOR_BREAK && super.canUse()
+    override fun canContinueToUse(): Boolean =
+        npc.config.ai.doorMode == GlbNpcAi.DOOR_BREAK && super.canContinueToUse()
+}
+
+/** Wolf-style small jumps at the current attack target while [GlbNpcAi.leapAtTarget] is on. */
+class GlbLeapGoal(private val npc: GlbNpc) : LeapAtTargetGoal(npc, 0.4f) {
+    override fun canUse(): Boolean = npc.config.ai.leapAtTarget && super.canUse()
+    override fun canContinueToUse(): Boolean = npc.config.ai.leapAtTarget && super.canContinueToUse()
+}
+
+/**
+ * Walks back inside the home radius once the NPC has been pushed outside it (knockback, fleeing, following). The
+ * radius itself is installed by [GlbNpc.applyAi]; this goal is the vanilla consumer of that restriction.
+ */
+class GlbReturnHomeGoal(private val npc: GlbNpc) : MoveTowardsRestrictionGoal(npc, 1.0) {
+    override fun canUse(): Boolean = npc.config.ai.returnToStart && super.canUse()
+    override fun canContinueToUse(): Boolean = npc.config.ai.returnToStart && super.canContinueToUse()
+}
+
+/** Vanilla's avoid-sunlight navigation flag, gated on the Sunlight shelter mode. */
+class GlbRestrictSunGoal(private val npc: GlbNpc) : RestrictSunGoal(npc) {
+    override fun canUse(): Boolean = npc.config.ai.shelter == GlbNpcAi.SHELTER_SUNLIGHT && super.canUse()
+    override fun canContinueToUse(): Boolean =
+        npc.config.ai.shelter == GlbNpcAi.SHELTER_SUNLIGHT && super.canContinueToUse()
+}
+
+/**
+ * CustomNPC `EntityAIMoveIndoors` analogue for the Darkness shelter mode: at night or while raining, walk to a nearby
+ * spot with no sky access. Samples ten random positions (±10 x/z, ±3 y) and accepts the first that is roofed and not
+ * inside a solid block (the same sanity filter CNPC gets from its `getWalkTargetValue` override).
+ */
+class GlbIndoorShelterGoal(private val npc: GlbNpc) : Goal() {
+    init {
+        setFlags(EnumSet.of(Goal.Flag.MOVE))
+    }
+
+    private var shelter: BlockPos? = null
+
+    override fun canUse(): Boolean {
+        if (npc.config.ai.shelter != GlbNpcAi.SHELTER_DARKNESS) return false
+        val level = npc.level()
+        // CNPC: only seek shelter when the sky is dark-ish (night or rain), and only in skylight dimensions.
+        if (level.isDay && !level.isRaining) return false
+        if (!level.dimensionType().hasSkyLight()) return false
+        val pos = npc.blockPosition()
+        if (!level.canSeeSkyFromBelowWater(pos) && level.getLightEmission(pos) > 8) return false
+        shelter = findShelter() ?: return false
+        return true
+    }
+
+    override fun canContinueToUse(): Boolean = !npc.navigation.isDone
+
+    override fun start() {
+        val target = shelter ?: return
+        npc.navigation.moveTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5, 1.0)
+    }
+
+    override fun stop() {
+        shelter = null
+    }
+
+    private fun findShelter(): BlockPos? {
+        val level = npc.level()
+        val origin = npc.blockPosition()
+        val random = npc.random
+        repeat(SAMPLE_COUNT) {
+            val pos = origin.offset(
+                random.nextInt(SAMPLE_RADIUS * 2 + 1) - SAMPLE_RADIUS,
+                random.nextInt(7) - 3,
+                random.nextInt(SAMPLE_RADIUS * 2 + 1) - SAMPLE_RADIUS,
+            )
+            if (!level.canSeeSkyFromBelowWater(pos) && !level.getBlockState(pos).isSolidRender(level, pos)) return pos
+        }
+        return null
+    }
+
+    private companion object {
+        const val SAMPLE_COUNT = 10
+        const val SAMPLE_RADIUS = 10
+    }
+}
+
+/**
+ * CustomNPC `EntityAIFindShade` analogue for the Sunlight shelter mode: while it is day and the NPC stands in direct
+ * sun, walk to a nearby roofed spot. Same ten-sample search as [GlbIndoorShelterGoal]; [GlbRestrictSunGoal] keeps the
+ * pathfinder from then walking back out into the sun.
+ */
+class GlbSunShelterGoal(private val npc: GlbNpc) : Goal() {
+    init {
+        setFlags(EnumSet.of(Goal.Flag.MOVE))
+    }
+
+    private var shelter: BlockPos? = null
+
+    override fun canUse(): Boolean {
+        if (npc.config.ai.shelter != GlbNpcAi.SHELTER_SUNLIGHT) return false
+        val level = npc.level()
+        if (!level.isDay) return false
+        if (!level.canSeeSkyFromBelowWater(npc.blockPosition())) return false
+        shelter = findShelter() ?: return false
+        return true
+    }
+
+    override fun canContinueToUse(): Boolean = !npc.navigation.isDone
+
+    override fun start() {
+        val target = shelter ?: return
+        npc.navigation.moveTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5, 1.0)
+    }
+
+    override fun stop() {
+        shelter = null
+    }
+
+    private fun findShelter(): BlockPos? {
+        val level = npc.level()
+        val origin = npc.blockPosition()
+        val random = npc.random
+        repeat(SAMPLE_COUNT) {
+            val pos = origin.offset(
+                random.nextInt(SAMPLE_RADIUS * 2 + 1) - SAMPLE_RADIUS,
+                random.nextInt(7) - 3,
+                random.nextInt(SAMPLE_RADIUS * 2 + 1) - SAMPLE_RADIUS,
+            )
+            if (!level.canSeeSkyFromBelowWater(pos) && !level.getBlockState(pos).isSolidRender(level, pos)) return pos
+        }
+        return null
+    }
+
+    private companion object {
+        const val SAMPLE_COUNT = 10
+        const val SAMPLE_RADIUS = 10
     }
 }
