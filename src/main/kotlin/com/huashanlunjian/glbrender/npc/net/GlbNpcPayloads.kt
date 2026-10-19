@@ -84,6 +84,7 @@ data class SetConfigPacket(
     val tint: Int,
     val dialogs: String,
     val clip: String,
+    val pbr: Boolean,
 ) : CustomPacketPayload {
     override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
 
@@ -110,6 +111,7 @@ data class SetConfigPacket(
                 buf.writeInt(packet.tint)
                 buf.writeUtf(packet.dialogs, MAX_DIALOG)
                 buf.writeUtf(packet.clip, MAX_CLIP)
+                buf.writeBoolean(packet.pbr)
             },
             { buf ->
                 SetConfigPacket(
@@ -129,6 +131,7 @@ data class SetConfigPacket(
                     buf.readInt(),
                     buf.readUtf(MAX_DIALOG),
                     buf.readUtf(MAX_CLIP),
+                    buf.readBoolean(),
                 )
             },
         )
@@ -172,6 +175,7 @@ data class SetConfigPacket(
                 config.tint = packet.tint
                 config.dialogs = packet.dialogs
                 config.clip = packet.clip.trim()
+                config.pbr = packet.pbr
             }
         }
 

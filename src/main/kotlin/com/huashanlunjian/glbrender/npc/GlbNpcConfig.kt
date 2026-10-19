@@ -133,6 +133,15 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         get() = npc.entityData.get(DATA_CLIP)
         set(value) = npc.entityData.set(DATA_CLIP, value)
 
+    /**
+     * Whether PBR primitives draw with the metallic-roughness shader (true, the default) or with the prebuilt
+     * vanilla-style base-color × lightmap material (false). Only affects assets loaded with a PBR material; unlit
+     * assets look the same either way. Read per frame by [GlbNpcModels.draw], so it switches without a reload.
+     */
+    var pbr: Boolean
+        get() = npc.entityData.get(DATA_PBR)
+        set(value) = npc.entityData.set(DATA_PBR, value)
+
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
     fun effectiveYawOffset(descriptor: GlbModelDescriptor): Float =
         yawOffset.takeUnless { it.isNaN() } ?: descriptor.yawOffset
@@ -159,6 +168,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putInt(KEY_TINT, tint)
         tag.putString(KEY_DIALOGS, dialogs)
         tag.putString(KEY_CLIP, clip)
+        tag.putBoolean(KEY_PBR, pbr)
         return tag
     }
 
@@ -178,6 +188,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tint = if (tag.contains(KEY_TINT)) tag.getInt(KEY_TINT) else NO_TINT
         if (tag.contains(KEY_DIALOGS)) dialogs = tag.getString(KEY_DIALOGS)
         if (tag.contains(KEY_CLIP)) clip = tag.getString(KEY_CLIP)
+        if (tag.contains(KEY_PBR)) pbr = tag.getBoolean(KEY_PBR)
     }
 
     companion object {
@@ -211,6 +222,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
         private val DATA_CLIP: EntityDataAccessor<String> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.STRING)
+        private val DATA_PBR: EntityDataAccessor<Boolean> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.BOOLEAN)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -227,6 +240,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_TINT = "GlbTint"
         private const val KEY_DIALOGS = "GlbDialogs"
         private const val KEY_CLIP = "GlbClip"
+        private const val KEY_PBR = "GlbPbr"
 
         /** Opaque white packed `0xAARRGGBB`: the identity for the vertex-tint multiply (no tint). */
         const val NO_TINT = -1 // 0xFFFFFFFF as a signed Int; NOT -0x1000000 (that is 0xFF000000 = opaque black)
@@ -267,6 +281,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_TINT, NO_TINT)
             builder.define(DATA_DIALOGS, "")
             builder.define(DATA_CLIP, "")
+            builder.define(DATA_PBR, true)
         }
     }
 }

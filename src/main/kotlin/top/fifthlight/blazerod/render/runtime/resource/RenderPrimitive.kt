@@ -15,6 +15,12 @@ class RenderPrimitive(
     val cpuVertexBuffer: ByteBuffer?,
     val indexBuffer: GpuIndexBuffer?,
     val material: RenderMaterial<*>,
+    /**
+     * An alternative non-PBR material for the same primitive, built at load time from the PBR description.
+     * PBR and Vanilla share the NORMAL-inclusive vertex format, so a task can swap between them at draw time
+     * without rebuilding vertex data. Null for primitives whose primary material is not PBR.
+     */
+    val vanillaMaterial: RenderMaterial<*>? = null,
     val targets: Targets?,
     val targetGroups: List<MorphTargetGroup>,
 ) : AbstractRefCount() {
@@ -25,6 +31,7 @@ class RenderPrimitive(
         gpuVertexBuffer?.increaseReferenceCount()
         indexBuffer?.increaseReferenceCount()
         material.increaseReferenceCount()
+        vanillaMaterial?.increaseReferenceCount()
         if (targetGroups.isEmpty()) {
             require(targets == null) { "Empty target groups with non-empty targets" }
         } else {
@@ -34,6 +41,10 @@ class RenderPrimitive(
 
     val gpuComplete = gpuVertexBuffer != null && targets?.gpuComplete != false
     val cpuComplete = cpuVertexBuffer != null && targets?.cpuComplete != false
+
+    /** The material a task draws with: the Vanilla alternative when requested, else the primitive's own. */
+    fun materialFor(useVanillaMaterial: Boolean): RenderMaterial<*> =
+        if (useVanillaMaterial) vanillaMaterial ?: material else material
 
     class Target(
         val gpuBuffer: GpuBuffer?,
@@ -70,6 +81,7 @@ class RenderPrimitive(
         gpuVertexBuffer?.decreaseReferenceCount()
         indexBuffer?.decreaseReferenceCount()
         material.decreaseReferenceCount()
+        vanillaMaterial?.decreaseReferenceCount()
         targets?.apply {
             position.close()
             color.close()

@@ -34,6 +34,7 @@ interface ModelInstance : RefCount {
         light: Int,
         overlay: Int = GlbOverlay.NO_OVERLAY,
         tint: RgbaColor = RgbaColor(1f, 1f, 1f, 1f),
+        useVanillaMaterial: Boolean = false,
     ): RenderTask
 
     /**

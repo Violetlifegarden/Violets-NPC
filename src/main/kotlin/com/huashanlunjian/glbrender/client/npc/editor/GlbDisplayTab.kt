@@ -31,6 +31,9 @@ class GlbDisplayTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         modelCycle(50, y, 150)
         label(210, y + 5, "Size")
         stepper(240, y, 90, ctx.scale, SCALE_STEP, SCALE_MIN, SCALE_MAX, 2) { ctx.scale = it }
+        // Real: pick the metallic-roughness PBR shader (Yes) or the vanilla-style shading path (No) per NPC.
+        label(336, y + 5, "PBR")
+        toggle(362, y, 40, ctx.pbr) { ctx.pbr = it }
         y += 23
 
         // Real: yaw / ground-offset overrides (no CNPC counterpart).

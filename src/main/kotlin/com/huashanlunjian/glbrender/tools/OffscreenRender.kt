@@ -62,6 +62,8 @@ fun main(args: Array<String>) {
     val outputPath = Path.of(args.getOrNull(1) ?: "build/offscreen-render.png")
     val clipName = args.getOrNull(2)
     val clipTime = args.getOrNull(3)?.toFloatOrNull() ?: 0f
+    // Optional material-mode probe: draw PBR primitives with their vanilla-style fallback material.
+    val useVanillaMaterial = args.getOrNull(4)?.toBoolean() ?: false
     val size = 512
 
     GLFWErrorCallback.createPrint(System.err).set()
@@ -86,7 +88,7 @@ fun main(args: Array<String>) {
     try {
         runBlocking {
             CoroutineScope(glDispatcher).async {
-                render(window, modelPath, outputPath, size, clipName, clipTime)
+                render(window, modelPath, outputPath, size, clipName, clipTime, useVanillaMaterial)
             }.await()
         }
     } finally {
@@ -105,6 +107,7 @@ private suspend fun render(
     size: Int,
     clipName: String?,
     clipTime: Float,
+    useVanillaMaterial: Boolean,
 ) = coroutineScope {
     GLFW.glfwMakeContextCurrent(window)
     GL.createCapabilities()
@@ -224,7 +227,13 @@ private suspend fun render(
     Gl.frameContext = RenderSystemFrameContext
 
     val renderer = RendererTypeHolder.vertexShaderTransform.create()
-    renderer.drawScene(instance, GlbRenderTarget(colorView, depthView), Matrix4f(), FULL_BRIGHT)
+    renderer.drawScene(
+        instance,
+        GlbRenderTarget(colorView, depthView),
+        Matrix4f(),
+        FULL_BRIGHT,
+        useVanillaMaterial = useVanillaMaterial,
+    )
     GL11.glFinish()
 
     val pixels = ByteBuffer.allocateDirect(size * size * 4).order(ByteOrder.nativeOrder())

@@ -28,6 +28,21 @@ class SceneReconstructor private constructor(private val info: GpuLoadModelLoadI
         info.textures[textureInfo.textureIndex].await()
     } ?: fallback
 
+    /**
+     * The non-PBR fallback for a PBR primitive, identical except for the shading model. Shares the primitive's
+     * vertex layout (both use NORMAL), so the renderer can swap materials per task with no buffer rebuild.
+     */
+    private suspend fun loadVanillaAlternative(materialLoadInfo: MaterialLoadInfo.Pbr) = RenderMaterial.Vanilla(
+        name = materialLoadInfo.name,
+        baseColor = materialLoadInfo.baseColor,
+        baseColorTexture = loadTexture(materialLoadInfo.baseColorTexture),
+        alphaMode = materialLoadInfo.alphaMode,
+        alphaCutoff = materialLoadInfo.alphaCutoff,
+        doubleSided = materialLoadInfo.doubleSided,
+        skinned = materialLoadInfo.skinned,
+        morphed = materialLoadInfo.morphed,
+    )
+
     private suspend fun loadMaterial(materialLoadInfo: MaterialLoadInfo) = when (materialLoadInfo) {
         is MaterialLoadInfo.Pbr -> RenderMaterial.Pbr(
             name = materialLoadInfo.name,
@@ -89,9 +104,13 @@ class SceneReconstructor private constructor(private val info: GpuLoadModelLoadI
                     val primitiveInfo = info.primitiveInfos[component.infoIndex]
                     val vertexBuffer = info.vertexBuffers[primitiveInfo.vertexBufferIndex].await()
                     val indexBuffer = primitiveInfo.indexBufferIndex?.let { index -> info.indexBuffers[index].await() }
-                    val material = primitiveInfo.materialInfo?.let { materialLoadInfo ->
+                    val materialInfo = primitiveInfo.materialInfo
+                    val material = materialInfo?.let { materialLoadInfo ->
                         loadMaterial(materialLoadInfo)
                     } ?: RenderMaterial.defaultMaterial
+                    val vanillaMaterial = (materialInfo as? MaterialLoadInfo.Pbr)?.let {
+                        loadVanillaAlternative(it)
+                    }
                     val targets =
                         primitiveInfo.morphedPrimitiveIndex?.let { index -> info.morphTargetInfos[index].await() }
                     PrimitiveComponent(
@@ -103,6 +122,7 @@ class SceneReconstructor private constructor(private val info: GpuLoadModelLoadI
                             cpuVertexBuffer = vertexBuffer.cpuBuffer,
                             indexBuffer = indexBuffer,
                             material = material,
+                            vanillaMaterial = vanillaMaterial,
                             targets = targets?.let {
                                 RenderPrimitive.Targets(
                                     position = it.position,

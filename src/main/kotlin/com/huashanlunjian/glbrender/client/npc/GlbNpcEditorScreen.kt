@@ -60,6 +60,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override var maxHealth: Float = 20.0f
     override var glowing: Boolean = false
     override var tint: Int = GlbNpcConfig.NO_TINT
+    override var pbr: Boolean = true
     override var dialogs: String = menu.npc?.config?.dialogs ?: ""
     override var clip: String = menu.npc?.config?.clip ?: ""
     override var displayName: String = menu.npc?.customName?.string ?: ""
@@ -93,6 +94,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         maxHealth = config?.effectiveMaxHealth() ?: 20.0f
         glowing = config?.glowing ?: false
         tint = config?.tint ?: GlbNpcConfig.NO_TINT
+        pbr = config?.pbr ?: true
         dialogs = config?.dialogs ?: ""
         clip = config?.clip ?: ""
     }
@@ -162,7 +164,7 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         PacketDistributor.sendToServer(
             SetConfigPacket(
                 id, scale, yawOffset, groundOffsetY, wander, followOwner, sit, lookPlayer, profession, onAttack, displayName,
-                maxHealth, glowing, tint, dialogs, clip,
+                maxHealth, glowing, tint, dialogs, clip, pbr,
             ),
         )
     }

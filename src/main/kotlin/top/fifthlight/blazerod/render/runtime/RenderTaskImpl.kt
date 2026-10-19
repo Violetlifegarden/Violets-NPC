@@ -15,6 +15,8 @@ class RenderTaskImpl(
     val light: Int,
     val overlay: Int,
     val tint: RgbaColor,
+    /** Draw PBR primitives with their prebuilt non-PBR fallback material instead of the PBR shader. */
+    val useVanillaMaterial: Boolean,
     modelMatrix: Matrix4fc,
     val localMatricesBuffer: CowBuffer<LocalMatricesBuffer>,
     val skinBuffer: List<CowBuffer<RenderSkinBuffer>>,
@@ -44,24 +46,28 @@ class RenderTaskImpl(
 
 class TaskMap : AutoCloseable {
     private var closed = false
-    private val tasks = mutableMapOf<RenderSceneImpl, MutableList<RenderTaskImpl>>()
+
+    /** An instanced pass draws one material for every instance, so the material mode is part of the batch key. */
+    private data class Key(val scene: RenderSceneImpl, val useVanillaMaterial: Boolean)
+
+    private val tasks = mutableMapOf<Key, MutableList<RenderTaskImpl>>()
 
     private fun checkNotClosed() = check(!closed) { "TaskMap is closed" }
 
     fun addTask(task: RenderTaskImpl) {
         checkNotClosed()
-        tasks.getOrPut(task.instance.scene) { mutableListOf() }.add(task)
+        tasks.getOrPut(Key(task.instance.scene, task.useVanillaMaterial)) { mutableListOf() }.add(task)
     }
 
     fun executeTasks(executor: (RenderSceneImpl, List<RenderTaskImpl>) -> Unit) {
         checkNotClosed()
-        for ((scene, tasks) in tasks) {
+        for ((key, tasks) in tasks) {
             if (tasks.size > BlazeRod.INSTANCE_SIZE) {
                 for (chunk in tasks.chunked(BlazeRod.INSTANCE_SIZE)) {
-                    executor(scene, chunk)
+                    executor(key.scene, chunk)
                 }
             } else {
-                executor(scene, tasks)
+                executor(key.scene, tasks)
             }
             for (task in tasks) {
                 task.release()

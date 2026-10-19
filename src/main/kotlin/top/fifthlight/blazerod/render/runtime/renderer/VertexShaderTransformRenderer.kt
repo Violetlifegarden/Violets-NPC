@@ -317,7 +317,7 @@ class VertexShaderTransformRenderer private constructor() :
         }
         val device = Gl.device
         val commandEncoder = device.createCommandEncoder()
-        val material = primitive.material
+        val material = primitive.materialFor(task.useVanillaMaterial)
         var renderPass: RenderPass? = null
         val instanceDataUniformBufferSlice: GpuBufferSlice
         val localMatricesBufferSlice: GpuBufferSlice
@@ -518,7 +518,8 @@ class VertexShaderTransformRenderer private constructor() :
         component: PrimitiveComponent,
     ) {
         val primitive = component.primitive
-        val material = primitive.material
+        // TaskMap keys batches by material mode, so every instance in this list selects the same material.
+        val material = primitive.materialFor(tasks.first().useVanillaMaterial)
         if (!primitive.gpuComplete) {
             return
         }

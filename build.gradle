@@ -111,10 +111,14 @@ tasks.register('offscreenRender', JavaExec) {
     def glb = gradle.startParameter.projectProperties['glb'] ?: 'test-models/deepseek-chan.glb'
     args glb
     // Optional clip preview: -Pclip=<glTF clip name> -Ptime=<seconds into the clip>.
+    // Optional material probe: -Pvanilla=true draws PBR primitives with the vanilla-style fallback material.
     def clip = gradle.startParameter.projectProperties['clip']
-    if (clip) {
-        // The tool takes [glb, outputPath, clip, time]; keep the default output path in place.
-        args 'build/offscreen-render.png', clip, gradle.startParameter.projectProperties['time'] ?: '0.0'
+    def vanilla = gradle.startParameter.projectProperties['vanilla'] == 'true'
+    if (clip || vanilla) {
+        // The tool takes [glb, outputPath, clip, time, useVanillaMaterial].
+        args vanilla ? 'build/offscreen-vanilla.png' : 'build/offscreen-render.png', clip ?: '',
+            gradle.startParameter.projectProperties['time'] ?: '0.0'
+        if (vanilla) args 'true'
     }
 }
 

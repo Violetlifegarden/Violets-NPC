@@ -131,13 +131,16 @@ object GlbNpcModels {
             // lightmap effects, not overlay rows.)
             val overlay = OverlayTexture.pack(0.0f, entity.hurtTime > 0 || entity.deathTime > 0)
             val tint = rgbaFromArgb(entity.config.tint)
+            // PBR vs Vanilla is a per-task material choice: the primitive was built with both materials at load time,
+            // and TaskMap keys batches by this flag so an instanced pass never mixes the two.
+            val useVanillaMaterial = !entity.config.pbr
             // T2 batching: the shared renderer supports scheduling, which groups same-scene tasks and draws each
             // primitive once with all instances (see executeScheduled). `renderInstanced` carries light/overlay/model
             // matrix PER INSTANCE but has no per-instance tint, so tinted NPCs stay on the immediate single-task path
             // rather than silently losing their tint.
             val scheduled = renderer as? ScheduledRenderer<*, *>
             if (scheduled != null && entity.config.tint == GlbNpcConfig.NO_TINT) {
-                scheduled.schedule(instance.createRenderTask(bodyMatrix, light, overlay, tint))
+                scheduled.schedule(instance.createRenderTask(bodyMatrix, light, overlay, tint, useVanillaMaterial))
                 scheduledAny = true
             } else {
                 val minecraft = Minecraft.getInstance()
@@ -154,6 +157,7 @@ object GlbNpcModels {
                     light,
                     overlay = overlay,
                     tint = tint,
+                    useVanillaMaterial = useVanillaMaterial,
                 )
             }
         } catch (error: RuntimeException) {

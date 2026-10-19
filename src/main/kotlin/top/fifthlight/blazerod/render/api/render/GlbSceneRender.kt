@@ -30,8 +30,9 @@ fun Renderer<*, *>.drawScene(
     light: Int,
     overlay: Int = GlbOverlay.NO_OVERLAY,
     tint: RgbaColor = RgbaColor(1f, 1f, 1f, 1f),
+    useVanillaMaterial: Boolean = false,
 ) {
-    val task = instance.createRenderTask(modelMatrix, light, overlay, tint)
+    val task = instance.createRenderTask(modelMatrix, light, overlay, tint, useVanillaMaterial)
     try {
         render(target.color, target.depth, task, instance.scene)
     } finally {

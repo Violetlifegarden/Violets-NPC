@@ -46,6 +46,9 @@ interface GlbEditorContext {
     /** The NPC's dialog lines as one `|`-separated string (empty = nothing to say). */
     var dialogs: String
 
+    /** Whether PBR materials use the metallic-roughness shader (true) or the vanilla-style shading path (false). */
+    var pbr: Boolean
+
     /** Forced animation clip name for editor preview; empty = the normal locomotion state machine. */
     var clip: String
 
