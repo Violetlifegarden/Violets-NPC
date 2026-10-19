@@ -143,6 +143,8 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
 
     private fun applyTabVisibility() {
         tabs.forEachIndexed { index, tab -> tab.setVisible(index == currentTab) }
+        // The menu's slots belong to the Inventory tab: hide + disable them (and their hit boxes) on every other tab.
+        menu.inventoryTabActive = currentTab == TAB_INVENTORY
     }
 
     // --- GlbEditorContext real-feature bindings ---
@@ -174,6 +176,10 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
     override fun fmt(value: Float, decimals: Int): String =
         String.format(Locale.ROOT, "%.${decimals}f", value)
 
+    override fun setDropChance(index: Int, value: Float) {
+        dropChances = GlbNpcConfig.withDropChance(dropChances, index, value)
+    }
+
     override fun renderBg(g: GuiGraphics, partialTick: Float, mouseX: Int, mouseY: Int) {
         val right = leftPos + PANEL_W
         val bottom = topPos + PANEL_H
@@ -183,11 +189,27 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         g.fill(leftPos, bottom - 1, right, bottom, PANEL_BORDER)
         g.fill(leftPos, topPos, leftPos + 1, bottom, PANEL_BORDER)
         g.fill(right - 1, topPos, right, bottom, PANEL_BORDER)
+        // CNPC's inventory texture supplies the slot cells; our flat panel has to draw them itself.
+        if (menu.inventoryTabActive) drawSlotCells(g)
+    }
+
+    /** One 18x18 cell per active slot (item icons are drawn on top by the container screen, at slot.x/slot.y). */
+    private fun drawSlotCells(g: GuiGraphics) {
+        for (slot in menu.slots) {
+            if (!slot.isActive()) continue
+            val x = leftPos + slot.x
+            val y = topPos + slot.y
+            g.fill(x - 1, y - 1, x + 17, y + 17, SLOT_BORDER)
+            g.fill(x, y, x + 16, y + 16, SLOT_BG)
+        }
     }
 
     override fun render(g: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float) {
         super.render(g, mouseX, mouseY, partialTick)
-        g.drawCenteredString(font, Component.literal("GLB NPC Editor"), leftPos + PANEL_W / 2, topPos + 6, 0xFFFFFF)
+        // The Inventory tab carries CNPC's "NPC Inventory" header at the panel center, where our title would collide.
+        if (currentTab != TAB_INVENTORY) {
+            g.drawCenteredString(font, Component.literal("GLB NPC Editor"), leftPos + PANEL_W / 2, topPos + 6, 0xFFFFFF)
+        }
         // Static labels are not widgets, so the active tab's labels are painted here (behind/on-top of its controls).
         tabs[currentTab].labels.forEach { g.drawString(font, it.text, it.x, it.y, it.color, false) }
     }
@@ -197,8 +219,11 @@ class GlbNpcEditorScreen(menu: GlbNpcMenu, inv: Inventory, title: Component) :
         const val PANEL_H = 200
 
         const val TAB_DISPLAY = 0
+        const val TAB_INVENTORY = 3
 
         val PANEL_BG = 0xF01E1E1E.toInt()
         val PANEL_BORDER = 0xFF5A5A5A.toInt()
+        val SLOT_BORDER = 0xFF8B8B8B.toInt()
+        val SLOT_BG = 0xFF373737.toInt()
     }
 }

@@ -58,6 +58,9 @@ interface GlbEditorContext {
      */
     var dropChances: String
 
+    /** Set one loot slot's drop percentage (index in `0 until GlbNpcInventory.LOOT_SLOTS`); call [applyConfig] next. */
+    fun setDropChance(index: Int, value: Float)
+
     /** The clip names the NPC's current model carries, for the preview cycle (empty while the scene loads). */
     fun clipNames(): List<String>
 

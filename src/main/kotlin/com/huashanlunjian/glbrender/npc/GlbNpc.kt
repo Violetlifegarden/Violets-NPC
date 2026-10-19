@@ -163,7 +163,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
                     object : MenuProvider {
                         override fun getDisplayName(): Component = Component.literal("GLB NPC")
                         override fun createMenu(windowId: Int, inv: Inventory, p: Player): AbstractContainerMenu =
-                            GlbNpcMenu(windowId, this@GlbNpc)
+                            GlbNpcMenu(windowId, this@GlbNpc, inv)
                     },
                     { buf -> buf.writeInt(id) },
                 )

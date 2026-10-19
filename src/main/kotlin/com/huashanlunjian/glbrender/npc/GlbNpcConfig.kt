@@ -156,10 +156,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
     fun dropChance(index: Int): Float = dropChanceOf(dropChances, index)
 
     fun setDropChance(index: Int, value: Float) {
-        if (index !in 0 until GlbNpcInventory.LOOT_SLOTS) return
-        val values = parseDropChances(dropChances).toMutableList()
-        values[index] = normalizeChance(value)
-        dropChances = values.joinToString("|") { formatChance(it) }
+        dropChances = withDropChance(dropChances, index, value)
     }
 
     fun effectiveScale(descriptor: GlbModelDescriptor): Float = scale.takeUnless { it.isNaN() } ?: descriptor.scale
@@ -310,6 +307,16 @@ class GlbNpcConfig(private val npc: GlbNpc) {
          */
         fun normalizeDropChances(raw: String): String =
             parseDropChances(raw).joinToString("|") { formatChance(it) }
+
+        /**
+         * Replaces one loot slot's percentage in a raw drop-chance string, returning the canonical string. [index]
+         * outside the loot range leaves the string canonicalized but otherwise unchanged.
+         */
+        fun withDropChance(raw: String, index: Int, value: Float): String {
+            val values = parseDropChances(raw).toMutableList()
+            if (index in values.indices) values[index] = normalizeChance(value)
+            return values.joinToString("|") { formatChance(it) }
+        }
 
         private fun parseDropChances(raw: String): List<Float> {
             val parts = raw.split('|')

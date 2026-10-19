@@ -23,6 +23,11 @@ object GlbNpcInventory {
     const val MENU_OFF_HAND = 6
     const val MENU_LOOT_START = 7
     const val NPC_SLOT_COUNT = MENU_LOOT_START + LOOT_SLOTS // 16
+
+    // Player inventory slots follow the NPC slots (3x9 rows, then the hotbar), like InventoryMenu's order.
+    const val MENU_PLAYER_START = NPC_SLOT_COUNT
+    const val MENU_PLAYER_MAIN_END = MENU_PLAYER_START + 27
+    const val MENU_PLAYER_END = MENU_PLAYER_MAIN_END + 9 // 52
 }
 
 /**
