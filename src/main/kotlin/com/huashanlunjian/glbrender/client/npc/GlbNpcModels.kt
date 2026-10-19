@@ -261,10 +261,10 @@ object GlbNpcModels {
 
         itemLocalMatrix.set(bodyMatrix)
         scene.renderTransform?.applyOnMatrix(itemLocalMatrix)
-        itemLocalMatrix.translationRotate(
-            handWorldPos.x, handWorldPos.y, handWorldPos.z,
-            handWorldRot.x, handWorldRot.y, handWorldRot.z, handWorldRot.w,
-        )
+        // Compose (translate/rotate multiply on the right). translationRotate() would SET the whole matrix and
+        // discard bodyMatrix's camera-relative placement, dropping the item at the camera origin.
+        itemLocalMatrix.translate(handWorldPos.x, handWorldPos.y, handWorldPos.z)
+        itemLocalMatrix.rotate(handWorldRot)
         itemLocalMatrix.rotateX(Math.toRadians(HELD_ITEM_ROT_X.toDouble()).toFloat())
         itemLocalMatrix.rotateY(Math.toRadians(HELD_ITEM_ROT_Y.toDouble()).toFloat())
         itemLocalMatrix.rotateZ(Math.toRadians(HELD_ITEM_ROT_Z.toDouble()).toFloat())

@@ -426,10 +426,10 @@ object GlbrenderClient {
         // bone's baked scale does not stretch the item) -> tunable item rotation/offset -> uniform item scale.
         itemLocalMatrix.set(bodyMatrix)
         scene.renderTransform?.applyOnMatrix(itemLocalMatrix)
-        itemLocalMatrix.translationRotate(
-            handWorldPos.x, handWorldPos.y, handWorldPos.z,
-            handWorldRot.x, handWorldRot.y, handWorldRot.z, handWorldRot.w,
-        )
+        // Compose (translate/rotate multiply on the right). translationRotate() would SET the whole matrix and
+        // discard bodyMatrix's camera-relative placement, dropping the item at the camera origin.
+        itemLocalMatrix.translate(handWorldPos.x, handWorldPos.y, handWorldPos.z)
+        itemLocalMatrix.rotate(handWorldRot)
         itemLocalMatrix.rotateX(Math.toRadians(heldItemRotX.toDouble()).toFloat())
         itemLocalMatrix.rotateY(Math.toRadians(heldItemRotY.toDouble()).toFloat())
         itemLocalMatrix.rotateZ(Math.toRadians(heldItemRotZ.toDouble()).toFloat())
