@@ -24,6 +24,7 @@ import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.goal.FloatGoal
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation
+import net.minecraft.world.entity.ai.navigation.PathNavigation
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.monster.RangedAttackMob
 import net.minecraft.world.entity.player.Inventory
@@ -94,6 +95,9 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     /** Whether [travel] currently has the mount-control step-height boost applied. */
     private var mountStepBoost = false
 
+    /** Last value written through [setPathfindingMalus] for [PathType.WATER]; NaN forces a first write. */
+    private var appliedWaterMalus = Float.NaN
+
     /** Game tick at which a dead NPC may respawn (0 = no pending respawn). */
     private var respawnAt = 0L
 
@@ -126,7 +130,20 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
             applyAi()
             return
         }
+        refreshWaterMalus()
         tickRegen()
+    }
+
+    /**
+     * The water malus has to follow the NPC's own state: `-1` makes water unpathable, including as the *start* node,
+     * so an avoids-water NPC that is already swimming would get no path at all. While it is in water the malus drops
+     * to vanilla-neutral so the pathfinder can route it out; it goes back to `-1` as soon as it is dry again.
+     */
+    private fun refreshWaterMalus() {
+        val malus = if (config.ai.avoidsWater && !isInWater && !isInLava) -1f else 0f
+        if (malus == appliedWaterMalus) return
+        setPathfindingMalus(PathType.WATER, malus)
+        appliedWaterMalus = malus
     }
 
     /** Push [GlbNpcConfig.maxHealth] onto the live `MAX_HEALTH` attribute and clamp current health to the new cap. */
@@ -157,16 +174,33 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         val ai = config.ai
         // CNPC enables door pathing for both Break and Open; Disabled leaves the navigation door-blind.
         (navigation as? GroundPathNavigation)?.setCanOpenDoors(ai.doorMode != GlbNpcAi.DOOR_DISABLED)
-        // CNPC toggles the water malus between "impassable" (-1) and vanilla's neutral value (0).
-        setPathfindingMalus(PathType.WATER, if (ai.avoidsWater) -1f else 0f)
+        appliedWaterMalus = Float.NaN
+        refreshWaterMalus()
         getAttribute(Attributes.MOVEMENT_SPEED)?.baseValue = ai.movementSpeed()
-        // The home anchor is captured once (at spawn) and kept in NBT, like CNPC's startPos.
+        // The home anchor is captured once (at spawn) and kept in NBT, like CNPC's startPos. `walkingRange` clamps the
+        // wander target ([GlbWanderGoal]) and triggers [GlbReturnHomeGoal]; there is deliberately no hard path
+        // restriction, which would fight the wander path at the radius boundary.
         if (!homeSet) {
             homePos = blockPosition()
             homeSet = true
         }
-        if (ai.returnToStart) restrictTo(homePos, ai.walkingRange) else clearRestriction()
     }
+
+    /** Home anchor for the walking-range/return-home goals, or null before the first server tick. */
+    internal fun homeAnchor(): BlockPos? = if (homeSet) homePos else null
+
+    /** Squared distance from the NPC to the centre of the home block. */
+    internal fun distanceToHomeSqr(): Double =
+        if (!homeSet) 0.0 else distanceToSqr(homePos.x + 0.5, homePos.y + 0.5, homePos.z + 0.5)
+
+    /** Squared `walkingRange`, the radius the NPC is allowed to roam without being called home. */
+    internal fun homeRangeSqr(): Double {
+        val range = config.ai.walkingRange.toDouble()
+        return range * range
+    }
+
+    /** Ground navigation that can path through closed fence gates as well as wooden doors (see [GlbNpcNavigation]). */
+    override fun createNavigation(level: Level): PathNavigation = GlbNpcNavigation(this, level)
 
     /** CustomNPC's regen cadence: once per second, either out-of-combat or in-combat regen, never both. */
     private fun tickRegen() {
@@ -200,9 +234,8 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         goalSelector.addGoal(5, GlbFleeGoal(this))
         goalSelector.addGoal(6, GlbFollowPlayerGoal(this))
         goalSelector.addGoal(7, GlbReturnHomeGoal(this))
-        // Door goals only trigger while the path's current node is a door, so they can sit under the movement goals.
-        goalSelector.addGoal(8, GlbOpenDoorGoal(this))
-        goalSelector.addGoal(8, GlbBreakDoorGoal(this))
+        // Reads the path nodes each tick, so it can sit under the movement goals without fighting them.
+        goalSelector.addGoal(8, GlbDoorGoal(this))
         goalSelector.addGoal(9, GlbIndoorShelterGoal(this))
         goalSelector.addGoal(9, GlbSunShelterGoal(this))
         goalSelector.addGoal(9, GlbRestrictSunGoal(this))
