@@ -44,7 +44,7 @@ abstract class NodeTransform : NodeTransformView {
         override fun applyOnMatrix(matrix: Matrix4f): Matrix4f = matrix.mul(this.matrix)
 
         override fun clone() = Matrix(
-            matrix = matrix,
+            matrix = Matrix4f(matrix),
         )
 
         override fun toDecomposed() = Decomposed(
@@ -96,10 +96,12 @@ abstract class NodeTransform : NodeTransformView {
             scale.set(other.scale)
         }
 
+        // Deep-copy the vectors: TransformMap clones the bind transform per instance and animation
+        // channels write through to these objects, so sharing them would overwrite the scene's rest pose.
         override fun clone() = Decomposed(
-            translation = translation,
-            rotation = rotation,
-            scale = scale,
+            translation = Vector3f(translation),
+            rotation = Quaternionf(rotation),
+            scale = Vector3f(scale),
         )
 
         override fun toDecomposed() = clone()
@@ -160,9 +162,9 @@ abstract class NodeTransform : NodeTransformView {
 
         @Deprecated("There is no way to convert bedrock transform to decomposed transform")
         override fun toDecomposed() = Decomposed(
-            translation = translation,
-            rotation = rotation,
-            scale = scale
+            translation = Vector3f(translation),
+            rotation = Quaternionf(rotation),
+            scale = Vector3f(scale)
         )
     }
 }
