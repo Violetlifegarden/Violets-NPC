@@ -110,7 +110,9 @@ object GlbAnimationTables {
 
     fun default(): GlbAnimationTable = GlbAnimationTable(
         listOf(
-            GlbAnimState("death", listOf("death", "die"), GlbLoopMode.PLAY_ONCE, PRIORITY_HIGHEST) {
+            // A corpse is a terminal pose, not a state to leave: hold the last frame rather than falling through to
+            // idle once the death clip finishes (which is what PLAY_ONCE means to the one-shot latch).
+            GlbAnimState("death", listOf("death", "die"), GlbLoopMode.HOLD_ON_LAST_FRAME, PRIORITY_HIGHEST) {
                 it.isDeadOrDying
             },
             GlbAnimState("onHorse", listOf("horse"), GlbLoopMode.LOOP, PRIORITY_HIGH) {

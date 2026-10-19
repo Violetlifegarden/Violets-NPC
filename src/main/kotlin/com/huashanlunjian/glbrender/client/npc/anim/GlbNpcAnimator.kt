@@ -15,6 +15,9 @@ import top.fifthlight.blazerod.render.api.animation.MaskableAnimationItemInstanc
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import top.fifthlight.blazerod.render.api.resource.RenderScene
 import top.fifthlight.blazerod.render.runtime.animation.AnimationItemImpl
+import top.fifthlight.blazerod.render.runtime.animation.AnimationItemInstanceImpl
+import top.fifthlight.blazerod.render.runtime.animation.CrossfadeAnimationItemInstance
+import top.fifthlight.blazerod.render.runtime.animation.CrossfadeAnimationState
 import kotlin.math.PI
 
 /**
@@ -33,6 +36,16 @@ class NpcAnimRuntime {
     internal var baseItem: AnimationItemInstance? = null
     internal var baseState: AnimationState? = null
 
+    /** Id of the table row the base clip came from; preview playback has none. Drives one-shot completion. */
+    internal var baseStateId: String? = null
+
+    /** In-flight transition from the previous base state; both are null once the blend has finished. */
+    internal var fadeItem: CrossfadeAnimationItemInstance? = null
+    internal var fadeState: CrossfadeAnimationState? = null
+
+    /** A PLAY_ONCE row that ran to its end, skipped by selection until its predicate stops matching. */
+    internal var suppressedOneShot: String? = null
+
     internal var actionClip: AnimationItemImpl? = null
     internal var actionItem: AnimationItemInstance? = null
     internal var actionState: AnimationState? = null
@@ -49,6 +62,10 @@ class NpcAnimRuntime {
         baseLoop = null
         baseItem = null
         baseState = null
+        baseStateId = null
+        fadeItem = null
+        fadeState = null
+        suppressedOneShot = null
         actionClip = null
         actionItem = null
         actionState = null
@@ -90,6 +107,12 @@ object GlbNpcAnimator {
 
     /** Prefix every Mixamo joint carries, in either separator form. */
     private const val MIXAMO_PREFIX = "mixamorig_"
+
+    /**
+     * Seconds a base-state switch blends over. TLM/GeckoLib's stock transition is 0.2-0.3s; a quarter second reads
+     * smooth at 20 TPS without delaying reactions noticeably.
+     */
+    private const val CROSSFADE_SECONDS = 0.25f
 
     /** Mixamo bone names for the tags the head/upper-body layers need. Mirrors the player pose driver's resolver. */
     private val MIXAMO_NAMES = mapOf(
@@ -137,7 +160,8 @@ object GlbNpcAnimator {
 
         val ctx = frameCtx(entity, gameTick, partialTick)
         val previewClip = resolvePreviewClip(clips, forcedClip)
-        val auto = table.select(ctx)
+        latchFinishedOneShot(runtime)
+        val auto = if (previewClip == null) selectState(runtime, table, ctx, clips) else null
         val clip: AnimationItemImpl
         val loop: GlbLoopMode
         if (previewClip != null) {
@@ -147,32 +171,47 @@ object GlbNpcAnimator {
             loop = GlbLoopMode.LOOP
         } else {
             auto ?: return false
-            // A single-clip rig (e.g. CesiumMan, which only ships a walk cycle) must resolve every state to that clip
-            // — that is the documented graceful degradation. A multi-clip rig must NOT: with no "idle" clip of its
-            // own, falling back to the first clip would make the NPC walk in place forever, which is far harder to
-            // notice than a frozen last pose.
-            clip = resolveClip(clips, auto.clipKeys, fallbackToFirst = clips.size == 1) ?: return false
-            loop = auto.loop
+            // A single-clip rig (e.g. CesiumMan, which only ships a walk cycle) resolves every state to that clip in
+            // `selectState`; a multi-clip rig never falls back to its first clip, so a missing "idle" does not turn
+            // into walking in place.
+            clip = auto.second
+            loop = auto.first.loop
         }
 
         // Restart only when the resolved clip or its loop mode actually changes; re-selecting the same walking clip
         // frame after frame must keep advancing, not re-seek to zero (name+loop dedup, mirroring TLM's setAnimation).
         if (clip !== runtime.baseClip || loop != runtime.baseLoop || runtime.baseState == null) {
-            // Upstream clears every animated transform on a state switch so bones the new clip does not touch fall
-            // back to the bind pose instead of keeping the previous clip's last pose.
+            val previousItem = runtime.baseItem
+            val previousState = runtime.baseState
+            // Clear every animated transform on a state switch so bones that neither clip touches fall back to the
+            // bind pose instead of keeping an older clip's last pose. Both endpoints rewrite their own bones from
+            // the cleared state on this same frame, so starting the fade does not pop.
             instance.clearTransform()
+            val context = NpcAnimationContext(entity, gameTick, partialTick)
             val itemInstance = AnimationItemInstance.Factory.of(clip)
-            val animState = itemInstance.createState(NpcAnimationContext(entity, gameTick, partialTick))
+            val animState = itemInstance.createState(context)
             (animState as? SimpleAnimationState)?.let { applyLoopMode(it, loop) }
             runtime.baseClip = clip
             runtime.baseLoop = loop
             runtime.baseItem = itemInstance
             runtime.baseState = animState
+            runtime.fadeItem = null
+            runtime.fadeState = null
+            // Blend from the state that was on screen. Starting from the already-running source state (instead of
+            // creating a fresh one) keeps its phase, so walk -> sprint does not restart the walk at frame zero.
+            // Mid-fade, `previousState` is the interrupted fade's target, i.e. the pose it was heading to.
+            if (previousItem is AnimationItemInstanceImpl && itemInstance is AnimationItemInstanceImpl &&
+                previousState != null
+            ) {
+                runtime.fadeItem = CrossfadeAnimationItemInstance(previousItem, itemInstance, CROSSFADE_SECONDS)
+                runtime.fadeState = CrossfadeAnimationState(previousState, animState, context, CROSSFADE_SECONDS)
+            }
             runtime.actionClip = null
             runtime.actionItem = null
             runtime.actionState = null
             runtime.actionArm = null
         }
+        runtime.baseStateId = if (previewClip == null) auto?.first?.id else null
 
         val itemInstance = runtime.baseItem ?: return false
         val animState = runtime.baseState ?: return false
@@ -184,14 +223,26 @@ object GlbNpcAnimator {
         // Multi-clip rigs are unaffected — their idle row resolves to a real idle clip that applyLoopMode already
         // set to loop, so the walk->idle clip *name* change hits the restart block and re-seeks normally.
         if (previewClip == null && clips.size == 1) {
-            (animState as? SimpleAnimationState)?.paused = auto?.id == "idle"
+            (animState as? SimpleAnimationState)?.paused = auto?.first?.id == "idle"
         } else if (previewClip != null) {
             // A preview must always advance, including on a single-clip rig whose clip idle had frozen.
             (animState as? SimpleAnimationState)?.paused = false
         }
 
-        animState.updateTime(playContext)
-        itemInstance.apply(instance, itemInstance.update(playContext, animState))
+        val fadeItem = runtime.fadeItem
+        val fadeState = runtime.fadeState
+        if (fadeItem != null && fadeState != null) {
+            // The fade state advances both endpoint clips, so the outgoing animation keeps moving while it fades.
+            fadeState.updateTime(playContext)
+            fadeItem.apply(instance, fadeItem.update(playContext, fadeState))
+            if (fadeState.elapsedTime >= fadeState.duration) {
+                runtime.fadeItem = null
+                runtime.fadeState = null
+            }
+        } else {
+            animState.updateTime(playContext)
+            itemInstance.apply(instance, itemInstance.update(playContext, animState))
+        }
 
         if (previewClip == null) {
             applyAction(runtime, entity, instance, clips, playContext)
@@ -328,6 +379,49 @@ object GlbNpcAnimator {
             EntityType.PIG -> GlbVehicle.PIG
             else -> GlbVehicle.OTHER
         }
+    }
+
+    /**
+     * Marks the current base row as exhausted once a PLAY_ONCE clip has reached its end. [selectState] then skips it
+     * until its predicate stops matching, which turns "attack plays once" into "attack, then back to idle" instead
+     * of "attack freezes on its last frame while hurtTime still counts down". A HOLD_ON_LAST_FRAME row (death) is a
+     * terminal pose, not a state to leave, so it is never latched.
+     */
+    private fun latchFinishedOneShot(runtime: NpcAnimRuntime) {
+        // Let an in-flight fade finish first, otherwise the follow-up state would cut it short.
+        if (runtime.fadeState != null) return
+        if (runtime.baseLoop != GlbLoopMode.PLAY_ONCE) return
+        val stateId = runtime.baseStateId ?: return
+        val state = runtime.baseState ?: return
+        val duration = state.duration ?: return
+        if (duration > 0f && state.getTime() >= duration) runtime.suppressedOneShot = stateId
+    }
+
+    /**
+     * First row that both matches this frame and resolves to a clip the model actually ships. Two kinds of row are
+     * skipped: a one-shot that already ran to its end (see [latchFinishedOneShot]), and any row whose clip this rig
+     * lacks — falling through to a lower-priority state is better than a null selection, which would freeze the pose.
+     */
+    private fun selectState(
+        runtime: NpcAnimRuntime,
+        table: GlbAnimationTable,
+        ctx: GlbFrameCtx,
+        clips: List<AnimationItemImpl>,
+    ): Pair<GlbAnimState, AnimationItemImpl>? {
+        val raw = table.select(ctx)
+        // The predicate stopped matching the suppressed row: that one-shot may be selected again later.
+        if (runtime.suppressedOneShot != null && runtime.suppressedOneShot != raw?.id) {
+            runtime.suppressedOneShot = null
+        }
+        val suppressed = runtime.suppressedOneShot
+        for (state in table.states) {
+            if (state.id == suppressed) continue
+            if (!state.test(ctx)) continue
+            // A single-clip rig must resolve every state to that clip — the documented graceful degradation.
+            val clip = resolveClip(clips, state.clipKeys, fallbackToFirst = clips.size == 1) ?: continue
+            return state to clip
+        }
+        return null
     }
 
     /**

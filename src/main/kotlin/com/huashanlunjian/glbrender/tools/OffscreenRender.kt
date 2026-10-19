@@ -34,7 +34,13 @@ import top.fifthlight.blazerod.render.api.render.GlbRenderTarget
 import top.fifthlight.blazerod.render.api.render.drawScene
 import top.fifthlight.blazerod.render.api.resource.ModelInstance
 import top.fifthlight.blazerod.render.api.resource.RenderScene
+import top.fifthlight.blazerod.render.runtime.animation.AnimationChannelItem
 import top.fifthlight.blazerod.render.runtime.animation.AnimationItemImpl
+import top.fifthlight.blazerod.render.runtime.animation.AnimationItemInstanceImpl
+import top.fifthlight.blazerod.render.runtime.animation.AnimationItemPendingValuesImpl
+import top.fifthlight.blazerod.render.runtime.animation.CrossfadeAnimationItemInstance
+import top.fifthlight.blazerod.render.runtime.animation.CrossfadeAnimationItemPendingValues
+import top.fifthlight.blazerod.render.runtime.animation.CrossfadeAnimationState
 import top.fifthlight.blazerod.render.common.BlazeRod
 import top.fifthlight.blazerod.render.runtime.BlazeRodRuntime
 import java.nio.ByteBuffer
@@ -124,6 +130,7 @@ private suspend fun render(window: Long, modelPath: Path, outputPath: Path, size
     // Probe clips first, on throwaway instances of its own: the render below releases its task, which can
     // drop the scene refcount to zero and close it, and a closed scene cannot back new instances.
     probeAnimations(scene, loadResult.animations ?: emptyList())
+    probeCrossfade(scene, loadResult.animations ?: emptyList())
 
     val device = Gl.device
     val color = device.createTexture(
@@ -208,6 +215,98 @@ private suspend fun render(window: Long, modelPath: Path, outputPath: Path, size
 
     println("written     = ${outputPath.toAbsolutePath()}")
     println("pixels      = $drawn / ${size * size}")
+}
+
+/**
+ * Exercises the ported crossfade on the model's first two clips: advance the source into the clip, start the fade,
+ * step to the half-way point, and check every rotation channel both clips animate lands halfway between the
+ * endpoints. A blend that never runs (broken cast, channels not matched, weight stuck at 0/1) collapses onto one
+ * endpoint instead of two equal halves. Runs entirely on CPU before the draw, like [probeAnimations].
+ */
+private fun probeCrossfade(scene: RenderScene, animations: List<Animation>) {
+    if (animations.size < 2) {
+        println("crossfade   = skipped (model has ${animations.size} clip(s), needs 2)")
+        return
+    }
+    val clipA = animations[0].name ?: "<unnamed#0>"
+    val clipB = animations[1].name ?: "<unnamed#1>"
+    val sourceItem = AnimationItem.Factory.load(scene, animations[0]) as AnimationItemImpl
+    val targetItem = AnimationItem.Factory.load(scene, animations[1]) as AnimationItemImpl
+    val sourceInstance = AnimationItemInstance.Factory.of(sourceItem) as AnimationItemInstanceImpl
+    val targetInstance = AnimationItemInstance.Factory.of(targetItem) as AnimationItemInstanceImpl
+
+    val context = TimedAnimationContext()
+    // Give the outgoing clip some phase before the fade starts, as a mid-walk transition would.
+    context.tick = 10
+    val sourceState = sourceInstance.createState(context)
+    context.tick = 20
+    val targetState = targetInstance.createState(context)
+    val fadeState = CrossfadeAnimationState(sourceState, targetState, context, 1f)
+    val fadeItem = CrossfadeAnimationItemInstance(sourceInstance, targetInstance, 1f)
+
+    // 10 ticks into a 1s fade == weight 0.5.
+    context.tick = 30
+    fadeState.updateTime(context)
+
+    val pending = fadeItem.update(context, fadeState) as CrossfadeAnimationItemPendingValues
+    val sourcePending = pending.sourcePending as AnimationItemPendingValuesImpl
+    val targetPending = pending.targetPending as AnimationItemPendingValuesImpl
+
+    // Capture the endpoint values before apply(): the blend overwrites the target array in place.
+    val sourceRotations = HashMap<Int, Quaternionf>()
+    sourceItem.channels.forEachIndexed { i, channel ->
+        if (channel is AnimationChannelItem.RotationItem) {
+            sourceRotations[channel.targetNodeIndex] = Quaternionf(sourcePending.pendingValues[i] as Quaternionf)
+        }
+    }
+    val targetRotations = HashMap<Int, Quaternionf>()
+    targetItem.channels.forEachIndexed { i, channel ->
+        if (channel is AnimationChannelItem.RotationItem) {
+            targetRotations[channel.targetNodeIndex] = Quaternionf(targetPending.pendingValues[i] as Quaternionf)
+        }
+    }
+
+    val instance = ModelInstance.Factory.of(scene)
+    instance.updateRenderData(0f)
+    fadeItem.apply(instance, pending)
+
+    fun angleBetween(a: Quaternionf, b: Quaternionf): Float {
+        val dot = kotlin.math.abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w).coerceAtMost(1f)
+        return 2f * kotlin.math.acos(dot)
+    }
+
+    var compared = 0
+    var differing = 0
+    var maxAsymmetry = 0f
+    var smallestHalfAngle = Float.MAX_VALUE
+    targetItem.channels.forEachIndexed { i, channel ->
+        if (channel !is AnimationChannelItem.RotationItem) return@forEachIndexed
+        val node = channel.targetNodeIndex
+        val sourceQuat = sourceRotations[node] ?: return@forEachIndexed
+        val targetQuat = targetRotations[node] ?: return@forEachIndexed
+        val blended = targetPending.pendingValues[i] as Quaternionf
+        compared++
+        if (angleBetween(sourceQuat, targetQuat) < 1e-3f) return@forEachIndexed
+        differing++
+        val fromSource = angleBetween(sourceQuat, blended)
+        val toTarget = angleBetween(blended, targetQuat)
+        maxAsymmetry = maxOf(maxAsymmetry, kotlin.math.abs(fromSource - toTarget))
+        smallestHalfAngle = minOf(smallestHalfAngle, fromSource)
+    }
+    val verdict = when {
+        compared == 0 -> "CHECK (no shared rotation channels)"
+        differing == 0 -> "static (endpoints identical)"
+        maxAsymmetry > 1e-3f -> "CHECK (asymmetric)"
+        else -> "ok"
+    }
+    println(
+        "crossfade   = $clipA -> $clipB @0.50: channels=$compared differing=$differing " +
+            "smallestHalfAngle=%.4f asym=%.5f %s".format(
+                if (differing == 0) 0f else smallestHalfAngle,
+                maxAsymmetry,
+                verdict,
+            )
+    )
 }
 
 /** LightTexture.FULL_BRIGHT, without pulling in the client class. */
