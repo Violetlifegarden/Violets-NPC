@@ -60,6 +60,8 @@ import kotlinx.coroutines.asCoroutineDispatcher
 fun main(args: Array<String>) {
     val modelPath = Path.of(args[0])
     val outputPath = Path.of(args.getOrNull(1) ?: "build/offscreen-render.png")
+    val clipName = args.getOrNull(2)
+    val clipTime = args.getOrNull(3)?.toFloatOrNull() ?: 0f
     val size = 512
 
     GLFWErrorCallback.createPrint(System.err).set()
@@ -83,7 +85,9 @@ fun main(args: Array<String>) {
 
     try {
         runBlocking {
-            CoroutineScope(glDispatcher).async { render(window, modelPath, outputPath, size) }.await()
+            CoroutineScope(glDispatcher).async {
+                render(window, modelPath, outputPath, size, clipName, clipTime)
+            }.await()
         }
     } finally {
         glExecutor.shutdown()
@@ -94,7 +98,14 @@ fun main(args: Array<String>) {
     }
 }
 
-private suspend fun render(window: Long, modelPath: Path, outputPath: Path, size: Int) = coroutineScope {
+private suspend fun render(
+    window: Long,
+    modelPath: Path,
+    outputPath: Path,
+    size: Int,
+    clipName: String?,
+    clipTime: Float,
+) = coroutineScope {
     GLFW.glfwMakeContextCurrent(window)
     GL.createCapabilities()
     // The renderer reads its matrices through RenderSystem, which insists on being used from the render
@@ -127,10 +138,43 @@ private suspend fun render(window: Long, modelPath: Path, outputPath: Path, size
     val instance = ModelInstance.Factory.of(scene)
     instance.updateRenderData(0f)
 
+    fun boneY(name: String): String {
+        val index = scene.nodeNameMap.entries.firstOrNull { it.key.equals(name, true) }?.value?.nodeIndex ?: return "?"
+        val m = Matrix4f()
+        instance.copyNodeWorldTransform(index, m)
+        return "%.3f".format(m.getTranslation(Vector3f()).y)
+    }
+    println(
+        "bind pose   = hipsY=${boneY("mixamorig_Hips")} headY=${boneY("mixamorig_Head")} " +
+            "toeY=${boneY("mixamorig_LeftToeBase")}"
+    )
+
     // Probe clips first, on throwaway instances of its own: the render below releases its task, which can
     // drop the scene refcount to zero and close it, and a closed scene cannot back new instances.
     probeAnimations(scene, loadResult.animations ?: emptyList())
     probeCrossfade(scene, loadResult.animations ?: emptyList())
+
+    // Optional single-clip preview: draws the rig in one clip at a fixed time, so an in-game pose can be
+    // reproduced without Minecraft (and without the NPC animator/state machine in the way).
+    if (!clipName.isNullOrEmpty()) {
+        val animation = (loadResult.animations ?: emptyList()).firstOrNull {
+            it.name?.equals(clipName, ignoreCase = true) == true
+        } ?: error("No clip named $clipName")
+        val item = AnimationItem.Factory.load(scene, animation)
+        val itemInstance = AnimationItemInstance.Factory.of(item)
+        val context = TimedAnimationContext()
+        val state = itemInstance.createState(context)
+        context.tick = (clipTime * 20f).toLong()
+        state.updateTime(context)
+
+        itemInstance.apply(instance, itemInstance.update(context, state))
+        instance.updateRenderData(0f)
+        println(
+            "clip        = ${animation.name} @ ${clipTime}s " +
+                "hipsY=${boneY("mixamorig_Hips")} headY=${boneY("mixamorig_Head")} " +
+                "toeY=${boneY("mixamorig_LeftToeBase")}"
+        )
+    }
 
     val device = Gl.device
     val color = device.createTexture(

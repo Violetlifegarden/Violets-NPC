@@ -110,6 +110,12 @@ tasks.register('offscreenRender', JavaExec) {
     classpath = sourceSets.main.output + configurations.compileClasspath + configurations.runtimeClasspath
     def glb = gradle.startParameter.projectProperties['glb'] ?: 'test-models/deepseek-chan.glb'
     args glb
+    // Optional clip preview: -Pclip=<glTF clip name> -Ptime=<seconds into the clip>.
+    def clip = gradle.startParameter.projectProperties['clip']
+    if (clip) {
+        // The tool takes [glb, outputPath, clip, time]; keep the default output path in place.
+        args 'build/offscreen-render.png', clip, gradle.startParameter.projectProperties['time'] ?: '0.0'
+    }
 }
 
 tasks.register('glbDump', JavaExec) {
