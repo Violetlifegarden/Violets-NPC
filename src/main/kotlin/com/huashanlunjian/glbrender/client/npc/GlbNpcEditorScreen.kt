@@ -5,11 +5,14 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbAiTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbDisplayTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorContext
 import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorTab
+import com.huashanlunjian.glbrender.client.npc.editor.GlbFactionSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbGlobalTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbInventoryTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbLinesSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbLinkedNpcSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbMarksSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbMovementSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbNpcDialogsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbSoundsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
@@ -268,6 +271,9 @@ class GlbNpcEditorScreen(
         val screen = when (section) {
             GlbEditorContext.ADVANCED_SOUNDS -> GlbSoundsSubScreen(advanced, { applyAdvanced() }, returnTo)
             GlbEditorContext.ADVANCED_MARKS -> GlbMarksSubScreen(advanced, { applyAdvanced() }, returnTo)
+            GlbEditorContext.ADVANCED_FACTION -> GlbFactionSubScreen(advanced, { applyAdvanced() }, returnTo)
+            GlbEditorContext.ADVANCED_DIALOGS -> GlbNpcDialogsSubScreen(advanced, { applyAdvanced() }, returnTo)
+            GlbEditorContext.ADVANCED_LINKED -> GlbLinkedNpcSubScreen(advanced, { applyAdvanced() }, returnTo)
             else -> GlbLinesSubScreen(advanced, { applyAdvanced() }, returnTo)
         }
         minecraft?.setScreen(screen)

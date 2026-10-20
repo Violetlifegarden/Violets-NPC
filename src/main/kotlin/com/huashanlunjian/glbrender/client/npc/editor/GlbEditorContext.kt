@@ -100,7 +100,7 @@ interface GlbEditorContext {
     /** Commit [advanced] to the server (one SetAdvancedPacket). */
     fun applyAdvanced()
 
-    /** Open one Advanced sub-screen ([ADVANCED_LINES] / [ADVANCED_SOUNDS] / [ADVANCED_MARKS]); returns on close. */
+    /** Open one Advanced sub-screen ([ADVANCED_*]); returns to a rebuilt editor on close. */
     fun openAdvancedSub(section: Int)
 
     fun fmt(value: Float, decimals: Int): String
@@ -109,5 +109,8 @@ interface GlbEditorContext {
         const val ADVANCED_LINES = 0
         const val ADVANCED_SOUNDS = 1
         const val ADVANCED_MARKS = 2
+        const val ADVANCED_FACTION = 3
+        const val ADVANCED_DIALOGS = 4
+        const val ADVANCED_LINKED = 5
     }
 }
