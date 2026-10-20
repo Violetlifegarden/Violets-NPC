@@ -49,10 +49,17 @@ class GlbNpcRenderer(context: EntityRendererProvider.Context) : EntityRenderer<G
      * [Font.DisplayMode.NORMAL] so geometry in front of the NPC occludes them like the name tag rather than x-raying.
      */
     private fun drawMarks(entity: GlbNpc, poseStack: PoseStack, bufferSource: MultiBufferSource, packedLight: Int) {
-        val marks = entity.config.advanced.marks.filter { it.type in 1..GlbNpcMark.TYPE_STAR }
-        if (marks.isEmpty()) return
+        val marks = entity.config.advanced.marks
         val font = getFont()
-        val totalWidth = marks.sumOf { font.width(GlbNpcMark.GLYPHS[it.type]) } + MARK_GAP * (marks.size - 1)
+        var count = 0
+        var totalWidth = 0
+        for (mark in marks) {
+            if (mark.type !in 1..GlbNpcMark.TYPE_STAR) continue
+            count++
+            totalWidth += font.width(GlbNpcMark.GLYPHS[mark.type])
+        }
+        if (count == 0) return
+        totalWidth += MARK_GAP * (count - 1)
         poseStack.pushPose()
         poseStack.translate(0.0, markHeight(entity).toDouble(), 0.0)
         poseStack.mulPose(entityRenderDispatcher.cameraOrientation())
@@ -60,6 +67,7 @@ class GlbNpcRenderer(context: EntityRendererProvider.Context) : EntityRenderer<G
         val matrix = poseStack.last().pose()
         var x = -totalWidth / 2f
         for (mark in marks) {
+            if (mark.type !in 1..GlbNpcMark.TYPE_STAR) continue
             val glyph = GlbNpcMark.GLYPHS[mark.type]
             font.drawInBatch(
                 glyph, x, 0f, OPAQUE or (mark.color and 0xFFFFFF), true,
