@@ -3,7 +3,9 @@ package com.huashanlunjian.glbrender.client.npc
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.GlbNpcMark
 import com.mojang.blaze3d.vertex.PoseStack
+import net.minecraft.client.gui.Font
 import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.client.renderer.culling.Frustum
 import net.minecraft.client.renderer.entity.EntityRenderer
@@ -38,6 +40,46 @@ class GlbNpcRenderer(context: EntityRendererProvider.Context) : EntityRenderer<G
         // pure GLB renderer naturally would) silently drops the name tag. Call it after the model so the name tag
         // composites on top; the poseStack is already positioned at the entity by EntityRenderDispatcher.
         super.render(entity, entityYaw, partialTick, poseStack, bufferSource, packedLight)
+        drawMarks(entity, poseStack, bufferSource, packedLight)
+    }
+
+    /**
+     * Draws the Advanced-tab marks as camera-facing glyphs above the name tag. CustomNPC blits its own mark textures;
+     * we reuse the vanilla font's glyphs instead, so this needs no new assets and still reads at a distance. Marks use
+     * [Font.DisplayMode.NORMAL] so geometry in front of the NPC occludes them like the name tag rather than x-raying.
+     */
+    private fun drawMarks(entity: GlbNpc, poseStack: PoseStack, bufferSource: MultiBufferSource, packedLight: Int) {
+        val marks = entity.config.advanced.marks.filter { it.type in 1..GlbNpcMark.TYPE_STAR }
+        if (marks.isEmpty()) return
+        val font = getFont()
+        val totalWidth = marks.sumOf { font.width(GlbNpcMark.GLYPHS[it.type]) } + MARK_GAP * (marks.size - 1)
+        poseStack.pushPose()
+        poseStack.translate(0.0, markHeight(entity).toDouble(), 0.0)
+        poseStack.mulPose(entityRenderDispatcher.cameraOrientation())
+        poseStack.scale(MARK_SCALE, -MARK_SCALE, MARK_SCALE)
+        val matrix = poseStack.last().pose()
+        var x = -totalWidth / 2f
+        for (mark in marks) {
+            val glyph = GlbNpcMark.GLYPHS[mark.type]
+            font.drawInBatch(
+                glyph, x, 0f, OPAQUE or (mark.color and 0xFFFFFF), true,
+                matrix, bufferSource, Font.DisplayMode.NORMAL, 0, packedLight,
+            )
+            x += font.width(glyph) + MARK_GAP
+        }
+        poseStack.popPose()
+    }
+
+    /** World height of the mark row: the scaled model top plus a gap above the name tag. */
+    private fun markHeight(entity: GlbNpc): Float {
+        val descriptor = descriptor(entity)
+        val modelTop = if (descriptor == null) {
+            entity.bbHeight
+        } else {
+            entity.config.effectiveScale(descriptor) *
+                (entity.config.effectiveGroundOffsetY(descriptor) + entity.bbHeight)
+        }
+        return modelTop + MARK_HEIGHT_ABOVE_MODEL
     }
 
     /**
@@ -106,6 +148,14 @@ class GlbNpcRenderer(context: EntityRendererProvider.Context) : EntityRenderer<G
     }
 
     companion object {
+        /** Vanilla name-tag text scale; the mark glyphs use the same size. */
+        private const val MARK_SCALE = 0.025f
+        /** Space between adjacent mark glyphs, in font pixels (before the 0.025 scale is applied). */
+        private const val MARK_GAP = 4
+        /** Gap above the scaled model top, so the row clears the name tag. */
+        private const val MARK_HEIGHT_ABOVE_MODEL = 0.85f
+        private const val OPAQUE = 0xFF000000.toInt()
+
         /** Vanilla's usual entity shadow radius (LivingEntityRenderer's default). */
         private const val DEFAULT_SHADOW_RADIUS = 0.5f
         private val TEXTURE = ResourceLocation.fromNamespaceAndPath("glbrender", "npc")
