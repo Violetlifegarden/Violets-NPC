@@ -1,5 +1,6 @@
 package com.huashanlunjian.glbrender.client.npc.editor
 
+import com.huashanlunjian.glbrender.npc.GlbNpcAdvanced
 import com.huashanlunjian.glbrender.npc.GlbNpcAi
 import com.huashanlunjian.glbrender.npc.GlbNpcStats
 import net.minecraft.client.gui.Font
@@ -93,5 +94,20 @@ interface GlbEditorContext {
     /** Open the detached Movement sub-screen (moving type, range, speed); the editor returns on close. */
     fun openMovementSub()
 
+    /** The NPC's Advanced block (lines/sounds/marks, a local editable copy); call [applyAdvanced] after changing it. */
+    val advanced: GlbNpcAdvanced
+
+    /** Commit [advanced] to the server (one SetAdvancedPacket). */
+    fun applyAdvanced()
+
+    /** Open one Advanced sub-screen ([ADVANCED_LINES] / [ADVANCED_SOUNDS] / [ADVANCED_MARKS]); returns on close. */
+    fun openAdvancedSub(section: Int)
+
     fun fmt(value: Float, decimals: Int): String
+
+    companion object {
+        const val ADVANCED_LINES = 0
+        const val ADVANCED_SOUNDS = 1
+        const val ADVANCED_MARKS = 2
+    }
 }

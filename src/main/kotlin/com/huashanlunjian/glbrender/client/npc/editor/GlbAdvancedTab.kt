@@ -1,9 +1,10 @@
 package com.huashanlunjian.glbrender.client.npc.editor
 
 /**
- * Advanced tab — a non-functional replica of CustomNPC `GuiNpcAdvanced`: the role/job bi-directional steppers (with
- * their edit buttons) and the two-column sub-screen launcher buttons (lines, factions, dialogs, sounds, day/night,
- * linked chunks, scenes, marks). None of these systems exist in our mod yet; the tab shows the surface area.
+ * Advanced tab — the CustomNPC `GuiNpcAdvanced` surface: the role/job steppers (still placeholders; those systems need
+ * world-side controllers we do not have) and the two-column sub-screen launchers. Lines, Sounds and Marks are real:
+ * they open sub-screens over [GlbEditorContext.advanced] and commit SetAdvancedPacket. Factions, Dialogs, Day/Night,
+ * Linked NPC and Scenes stay placeholders.
  */
 class GlbAdvancedTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     override val title = "Advanced"
@@ -18,16 +19,16 @@ class GlbAdvancedTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
         stubStepper(85, y, 155, "None")
         stubButton(245, y, 52, "Edit")
         y += 22
-        stubButton(15, y, 190, "Lines")
+        button(15, y, 190, "Lines") { ctx.openAdvancedSub(GlbEditorContext.ADVANCED_LINES) }
         stubButton(208, y, 190, "Factions")
         y += 22
         stubButton(15, y, 190, "Dialogs")
-        stubButton(208, y, 190, "Sounds")
+        button(208, y, 190, "Sounds") { ctx.openAdvancedSub(GlbEditorContext.ADVANCED_SOUNDS) }
         y += 22
         stubButton(15, y, 190, "Day/Night")
-        stubButton(208, y, 190, "Linked chunks")
+        stubButton(208, y, 190, "Linked NPC")
         y += 22
         stubButton(15, y, 190, "Scenes")
-        stubButton(208, y, 190, "Marks")
+        button(208, y, 190, "Marks") { ctx.openAdvancedSub(GlbEditorContext.ADVANCED_MARKS) }
     }
 }

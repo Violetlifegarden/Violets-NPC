@@ -7,17 +7,22 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorContext
 import com.huashanlunjian.glbrender.client.npc.editor.GlbEditorTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbGlobalTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbInventoryTab
+import com.huashanlunjian.glbrender.client.npc.editor.GlbLinesSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbMarksSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbMovementSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbSoundsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
 import com.huashanlunjian.glbrender.client.npc.preview.GlbPreviewScreen
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
+import com.huashanlunjian.glbrender.npc.GlbNpcAdvanced
 import com.huashanlunjian.glbrender.npc.GlbNpcAi
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.huashanlunjian.glbrender.npc.GlbNpcMenu
 import com.huashanlunjian.glbrender.npc.GlbNpcStats
+import com.huashanlunjian.glbrender.npc.net.SetAdvancedPacket
 import com.huashanlunjian.glbrender.npc.net.SetAiPacket
 import com.huashanlunjian.glbrender.npc.net.SetConfigPacket
 import com.huashanlunjian.glbrender.npc.net.SetModelPacket
@@ -25,6 +30,7 @@ import com.huashanlunjian.glbrender.npc.net.SetStatsPacket
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.Button
+import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Inventory
@@ -51,6 +57,7 @@ class GlbNpcEditorScreen(
     statsSeed: GlbNpcStats? = null,
     aiSeed: GlbNpcAi? = null,
     private val wanderSeed: Boolean? = null,
+    advancedSeed: GlbNpcAdvanced? = null,
 ) :
     AbstractContainerScreen<GlbNpcMenu>(menu, editorInventory, title), GlbEditorContext {
 
@@ -91,6 +98,10 @@ class GlbNpcEditorScreen(
      * not arrived yet is not visually rolled back.
      */
     override var ai: GlbNpcAi = aiSeed ?: menu.npc?.config?.ai?.copyAi() ?: GlbNpcAi()
+
+    /** Local editable Advanced copy, seeded like [stats] and handed back by its sub-screens. */
+    override var advanced: GlbNpcAdvanced =
+        advancedSeed ?: menu.npc?.config?.advanced?.copyAdvanced() ?: GlbNpcAdvanced()
 
     private var currentTab = TAB_DISPLAY
 
@@ -198,7 +209,11 @@ class GlbNpcEditorScreen(
             GlbPreviewScreen(menu.npc, id, clip, menu.npc?.bbHeight ?: 1.8f) {
                 // Rebuild the editor over the same menu (and the same still-open server session) on the way back;
                 // if the NPC despawned in the meantime, closing to the game is the only safe destination.
-                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander) else null
+                if (menu.npc?.isRemoved == false) {
+                    GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander, advanced)
+                } else {
+                    null
+                }
             },
         )
     }
@@ -236,11 +251,37 @@ class GlbNpcEditorScreen(
         PacketDistributor.sendToServer(SetAiPacket(id, ai.copyAi()))
     }
 
+    override fun applyAdvanced() {
+        val id = npcId ?: return
+        PacketDistributor.sendToServer(SetAdvancedPacket(id, advanced.copyAdvanced()))
+    }
+
+    override fun openAdvancedSub(section: Int) {
+        keepMenuOnClose = true
+        val returnTo: () -> Screen? = {
+            if (menu.npc?.isRemoved == false) {
+                GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander, advanced)
+            } else {
+                null
+            }
+        }
+        val screen = when (section) {
+            GlbEditorContext.ADVANCED_SOUNDS -> GlbSoundsSubScreen(advanced, { applyAdvanced() }, returnTo)
+            GlbEditorContext.ADVANCED_MARKS -> GlbMarksSubScreen(advanced, { applyAdvanced() }, returnTo)
+            else -> GlbLinesSubScreen(advanced, { applyAdvanced() }, returnTo)
+        }
+        minecraft?.setScreen(screen)
+    }
+
     override fun openStatsSub(section: Int) {
         keepMenuOnClose = true
         minecraft?.setScreen(
             GlbStatsSubScreen(section, stats, { applyStats() }) {
-                if (menu.npc?.isRemoved == false) GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander) else null
+                if (menu.npc?.isRemoved == false) {
+                    GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander, advanced)
+                } else {
+                    null
+                }
             },
         )
     }
