@@ -103,6 +103,9 @@ interface GlbEditorContext {
     /** Open one Advanced sub-screen ([ADVANCED_*]); returns to a rebuilt editor on close. */
     fun openAdvancedSub(section: Int)
 
+    /** Open one Global world-manager sub-screen ([GLOBAL_*]); returns to a rebuilt editor on close. */
+    fun openGlobalSub(section: Int)
+
     fun fmt(value: Float, decimals: Int): String
 
     companion object {
@@ -112,5 +115,10 @@ interface GlbEditorContext {
         const val ADVANCED_FACTION = 3
         const val ADVANCED_DIALOGS = 4
         const val ADVANCED_LINKED = 5
+
+        const val GLOBAL_FACTIONS = 0
+        const val GLOBAL_DIALOGS = 1
+        const val GLOBAL_LINKED = 2
+        const val GLOBAL_TRANSPORT = 3
     }
 }

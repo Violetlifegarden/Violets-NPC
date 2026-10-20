@@ -1,21 +1,33 @@
 package com.huashanlunjian.glbrender.client.npc.editor
 
 /**
- * Global tab — a non-functional replica of CustomNPC `GuiNPCGlobalMainMenu`: the single-column list of global-editor
- * launcher buttons (bank accounts, factions, dialogs, quests, transport, player data, recipes, natural spawn, linked
- * chunks). These open CNPC's world-wide management sub-screens, none of which apply to our mod; placeholders only.
+ * Global tab — the CustomNPC `GuiNPCGlobalMainMenu` launcher list. Factions, Dialogs, Transport Locations and Linked
+ * NPCs open our world-data managers (shared by every NPC, operator-gated). Bank Accounts, Quests, Player Data, Recipes
+ * and Natural Spawn stay placeholders: they are full world suites (or, in CNPC, marked broken/WIP) that nothing in our
+ * NPC behavior consumes yet.
  */
 class GlbGlobalTab(ctx: GlbEditorContext) : GlbEditorTab(ctx) {
     override val title = "Global"
 
     override fun build() {
         val items = listOf(
-            "Bank Accounts", "Factions", "Dialogs", "Quests", "Transport Locations",
-            "Player Data", "Recipes", "Natural Spawn", "Linked Chunks",
+            "Bank Accounts" to null,
+            "Factions" to GlbEditorContext.GLOBAL_FACTIONS,
+            "Dialogs" to GlbEditorContext.GLOBAL_DIALOGS,
+            "Quests" to null,
+            "Transport Locations" to GlbEditorContext.GLOBAL_TRANSPORT,
+            "Player Data" to null,
+            "Recipes" to null,
+            "Natural Spawn" to null,
+            "Linked NPCs" to GlbEditorContext.GLOBAL_LINKED,
         )
         var y = 8
-        items.forEach {
-            stubButton(85, y, 250, it)
+        for ((name, section) in items) {
+            if (section == null) {
+                stubButton(85, y, 250, name)
+            } else {
+                button(85, y, 250, name) { ctx.openGlobalSub(section) }
+            }
             y += 21
         }
     }

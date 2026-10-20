@@ -17,6 +17,10 @@ import com.huashanlunjian.glbrender.client.npc.editor.GlbSoundsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsSubScreen
 import com.huashanlunjian.glbrender.client.npc.editor.GlbStatsTab
 import com.huashanlunjian.glbrender.client.npc.editor.GlbTabButton
+import com.huashanlunjian.glbrender.client.npc.editor.GlbWorldDialogsSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbWorldFactionsSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbWorldLinkedNamesSubScreen
+import com.huashanlunjian.glbrender.client.npc.editor.GlbWorldTransportSubScreen
 import com.huashanlunjian.glbrender.client.npc.preview.GlbPreviewScreen
 import com.huashanlunjian.glbrender.npc.GlbModelDescriptor
 import com.huashanlunjian.glbrender.npc.GlbModels
@@ -275,6 +279,24 @@ class GlbNpcEditorScreen(
             GlbEditorContext.ADVANCED_DIALOGS -> GlbNpcDialogsSubScreen(advanced, { applyAdvanced() }, returnTo)
             GlbEditorContext.ADVANCED_LINKED -> GlbLinkedNpcSubScreen(advanced, { applyAdvanced() }, returnTo)
             else -> GlbLinesSubScreen(advanced, { applyAdvanced() }, returnTo)
+        }
+        minecraft?.setScreen(screen)
+    }
+
+    override fun openGlobalSub(section: Int) {
+        keepMenuOnClose = true
+        val returnTo: () -> Screen? = {
+            if (menu.npc?.isRemoved == false) {
+                GlbNpcEditorScreen(menu, editorInventory, title, stats, ai, wander, advanced)
+            } else {
+                null
+            }
+        }
+        val screen = when (section) {
+            GlbEditorContext.GLOBAL_DIALOGS -> GlbWorldDialogsSubScreen(returnTo)
+            GlbEditorContext.GLOBAL_LINKED -> GlbWorldLinkedNamesSubScreen(returnTo)
+            GlbEditorContext.GLOBAL_TRANSPORT -> GlbWorldTransportSubScreen(returnTo)
+            else -> GlbWorldFactionsSubScreen(returnTo)
         }
         minecraft?.setScreen(screen)
     }

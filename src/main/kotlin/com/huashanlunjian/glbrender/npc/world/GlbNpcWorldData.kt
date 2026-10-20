@@ -248,6 +248,16 @@ class GlbNpcWorldData : SavedData() {
 
         fun fromTag(tag: CompoundTag): GlbNpcWorldData = GlbNpcWorldData().also { it.load(tag) }
 
+        /** The `Entries`-wrapped compound list [replaceSection] expects; used by the client's Global managers. */
+        fun entriesTag(entries: List<CompoundTag>): CompoundTag = CompoundTag().also { tag ->
+            tag.put(KEY_ENTRIES, ListTag().also { list -> entries.forEach { list.add(it) } })
+        }
+
+        /** The `Entries`-wrapped string list for the linked-name section. */
+        fun stringsTag(names: List<String>): CompoundTag = CompoundTag().also { tag ->
+            tag.put(KEY_ENTRIES, ListTag().also { list -> names.forEach { list.add(StringTag.valueOf(it)) } })
+        }
+
         private fun nextId(ids: List<Int>): Int = (ids.maxOrNull() ?: 0) + 1
 
         private fun clampCoord(value: Double): Double =
