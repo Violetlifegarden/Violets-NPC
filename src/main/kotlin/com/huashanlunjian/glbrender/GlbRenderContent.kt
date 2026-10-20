@@ -4,7 +4,9 @@ import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
 import com.huashanlunjian.glbrender.npc.GlbNpcMenu
 import com.huashanlunjian.glbrender.npc.net.GlbRenderNetwork
+import com.huashanlunjian.glbrender.npc.world.GlbNpcWorldEvents
 import net.minecraft.core.registries.Registries
+import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.entity.MobCategory
 import net.minecraft.world.inventory.MenuType
@@ -12,8 +14,10 @@ import net.minecraft.world.item.Item
 import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.common.DeferredSpawnEggItem
+import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.extensions.IMenuTypeExtension
 import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent
+import net.neoforged.neoforge.event.entity.player.PlayerEvent
 import net.neoforged.neoforge.registries.DeferredHolder
 import net.neoforged.neoforge.registries.DeferredRegister
 import java.util.function.Consumer
@@ -69,6 +73,13 @@ object GlbRenderContent {
             EventPriority.NORMAL,
             EntityAttributeCreationEvent::class.java,
             Consumer { event -> event.put(GLB_NPC.get(), GlbNpc.attributes().build()) },
+        )
+        // The world-level tables (factions/dialogs/linked names/transport) live in no entity, so each player gets the
+        // full snapshot on join; later edits are broadcast from the section-replacement handler.
+        NeoForge.EVENT_BUS.addListener(
+            EventPriority.NORMAL,
+            PlayerEvent.PlayerLoggedInEvent::class.java,
+            Consumer { event -> (event.entity as? ServerPlayer)?.let(GlbNpcWorldEvents::syncTo) },
         )
     }
 }

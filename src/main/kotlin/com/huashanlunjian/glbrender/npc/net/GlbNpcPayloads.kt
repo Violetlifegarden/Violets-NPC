@@ -335,6 +335,13 @@ object GlbRenderNetwork {
                 registrar.playToServer(SetAdvancedPacket.TYPE, SetAdvancedPacket.STREAM_CODEC) { packet, context ->
                     SetAdvancedPacket.handle(packet, context)
                 }
+                // World-level tables: the snapshot is server->client; section replacements are op-gated client->server.
+                registrar.playToClient(SyncWorldDataPacket.TYPE, SyncWorldDataPacket.STREAM_CODEC) { packet, context ->
+                    SyncWorldDataPacket.handleClient(packet, context)
+                }
+                registrar.playToServer(SetWorldSectionPacket.TYPE, SetWorldSectionPacket.STREAM_CODEC) { packet, context ->
+                    SetWorldSectionPacket.handle(packet, context)
+                }
             },
         )
     }

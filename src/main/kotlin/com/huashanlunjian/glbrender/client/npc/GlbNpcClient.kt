@@ -1,6 +1,7 @@
 package com.huashanlunjian.glbrender.client.npc
 
 import com.huashanlunjian.glbrender.GlbRenderContent
+import com.huashanlunjian.glbrender.client.npc.world.GlbNpcWorldCache
 import com.huashanlunjian.glbrender.npc.GlbNpcClientHooks
 import net.minecraft.client.Minecraft
 import net.minecraft.world.item.CreativeModeTabs
@@ -25,6 +26,7 @@ object GlbNpcClient {
         GlbNpcClientHooks.openDialog = { name, lines ->
             Minecraft.getInstance().setScreen(GlbDialogScreen(name, lines))
         }
+        GlbNpcClientHooks.applyWorldData = { tag -> GlbNpcWorldCache.apply(tag) }
         bus.addListener(
             EventPriority.NORMAL,
             EntityRenderersEvent.RegisterRenderers::class.java,
