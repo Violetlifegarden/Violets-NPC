@@ -62,25 +62,31 @@ abstract class GlbWorldSubScreen(
         index = index.coerceIn(0, (count() - 1).coerceAtLeast(0))
 
         addRenderableWidget(
-            Button.builder(Component.literal("<")) { page(-1) }
-                .bounds(left + 20, top + 26, 20, 20)
+            Button.builder(Component.literal("<")) {
+                setFocused(null)
+                page(-1)
+            }.bounds(left + 20, top + 26, 20, 20)
                 .build()
                 .also { it.active = count() > 1 },
         )
         addRenderableWidget(
-            Button.builder(Component.literal(">")) { page(1) }
-                .bounds(left + 144, top + 26, 20, 20)
+            Button.builder(Component.literal(">")) {
+                setFocused(null)
+                page(1)
+            }.bounds(left + 144, top + 26, 20, 20)
                 .build()
                 .also { it.active = count() > 1 },
         )
         addRenderableWidget(
             Button.builder(Component.literal(addLabel)) {
+                setFocused(null)
                 addEntry()
                 rebuildWidgets()
             }.bounds(left + 210, top + 26, 90, 20).build(),
         )
         addRenderableWidget(
             Button.builder(Component.literal("Remove")) {
+                setFocused(null)
                 removeEntry(index)
                 rebuildWidgets()
             }.bounds(left + 310, top + 26, 90, 20)
