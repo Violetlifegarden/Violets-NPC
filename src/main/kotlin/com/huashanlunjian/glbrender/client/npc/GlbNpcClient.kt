@@ -26,6 +26,15 @@ object GlbNpcClient {
         GlbNpcClientHooks.openDialog = { name, lines ->
             Minecraft.getInstance().setScreen(GlbDialogScreen(name, lines))
         }
+        GlbNpcClientHooks.openDialogChooser = { name, ids, fallbackLines ->
+            val dialogs = ids.mapNotNull { GlbNpcWorldCache.dialog(it) }
+            val screen = when {
+                dialogs.isNotEmpty() -> GlbDialogOptionsScreen(name, dialogs)
+                fallbackLines.isNotEmpty() -> GlbDialogScreen(name, fallbackLines)
+                else -> null
+            }
+            if (screen != null) Minecraft.getInstance().setScreen(screen)
+        }
         GlbNpcClientHooks.applyWorldData = { tag -> GlbNpcWorldCache.apply(tag) }
         bus.addListener(
             EventPriority.NORMAL,

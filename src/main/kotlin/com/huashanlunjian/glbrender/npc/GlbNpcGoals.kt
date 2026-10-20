@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.FenceGateBlock
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.Vec3
 import java.util.EnumSet
+import java.util.function.Predicate
 import kotlin.math.sqrt
 
 /**
@@ -188,6 +189,67 @@ class GlbPanicGoal(private val npc: GlbNpc) : AvoidEntityGoal<Player>(npc, Playe
 class GlbGuardTargetGoal(private val npc: GlbNpc) : NearestAttackableTargetGoal<Monster>(npc, Monster::class.java, true) {
     override fun canUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canUse()
     override fun canContinueToUse(): Boolean = npc.config.profession == GlbNpcConfig.PROFESSION_GUARD && super.canContinueToUse()
+}
+
+/**
+ * Acquires another [GlbNpc] of a different faction while [GlbNpcAdvanced.attackOtherFactions] is on. Both sides must
+ * carry a positive faction id, so factionless NPCs (the default) are never targeted — existing worlds keep their exact
+ * behavior. The predicate is evaluated by the vanilla nearest-target scan; [canUse]/[canContinueToUse] re-check the
+ * switches so toggling cross-faction aggression takes effect on the next evaluation.
+ */
+class GlbFactionTargetGoal(private val npc: GlbNpc) :
+    NearestAttackableTargetGoal<GlbNpc>(
+        npc,
+        GlbNpc::class.java,
+        true,
+        Predicate { candidate -> isRivalFaction(npc, candidate) },
+    ) {
+
+    override fun canUse(): Boolean {
+        val advanced = npc.config.advanced
+        return advanced.attackOtherFactions &&
+            advanced.faction != GlbNpcAdvanced.FACTION_NONE &&
+            super.canUse()
+    }
+
+    override fun canContinueToUse(): Boolean {
+        val advanced = npc.config.advanced
+        val current = npc.target as? GlbNpc ?: return false
+        return advanced.attackOtherFactions &&
+            advanced.faction != GlbNpcAdvanced.FACTION_NONE &&
+            current.config.advanced.faction != advanced.faction &&
+            super.canContinueToUse()
+    }
+}
+
+/** Top-level so the target-goal predicate can use it from its super-constructor argument (no `this` access yet). */
+private fun isRivalFaction(npc: GlbNpc, candidate: LivingEntity): Boolean {
+    if (candidate !is GlbNpc || candidate === npc) return false
+    val mine = npc.config.advanced.faction
+    val theirs = candidate.config.advanced.faction
+    return mine != GlbNpcAdvanced.FACTION_NONE &&
+        theirs != GlbNpcAdvanced.FACTION_NONE &&
+        mine != theirs
+}
+
+/**
+ * Executes a faction fight with [MeleeAttackGoal]: either a rival NPC acquired by [GlbFactionTargetGoal], or — while
+ * [GlbNpcAdvanced.defendFaction] is on — whatever entity got set as the target by an ally's distress call (see
+ * [GlbNpc.defendFaction]). Damage is the shared `ATTACK_DAMAGE` attribute (already 4.0 for every NPC and overridable
+ * from Stats), so this adds behavior without a second combat model.
+ */
+class GlbFactionAttackGoal(private val npc: GlbNpc) : MeleeAttackGoal(npc, 1.2, true) {
+    override fun canUse(): Boolean = attacksFactionTarget() && super.canUse()
+    override fun canContinueToUse(): Boolean = attacksFactionTarget() && super.canContinueToUse()
+
+    private fun attacksFactionTarget(): Boolean {
+        val advanced = npc.config.advanced
+        // The defense call sets a target on an ally; that target may be a player or any other living attacker.
+        if (advanced.defendFaction && npc.target != null) return true
+        if (!advanced.attackOtherFactions) return false
+        val target = npc.target as? GlbNpc ?: return false
+        return isRivalFaction(npc, target)
+    }
 }
 
 /**

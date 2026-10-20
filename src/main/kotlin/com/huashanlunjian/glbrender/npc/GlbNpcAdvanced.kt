@@ -45,6 +45,10 @@ data class GlbNpcMark(
  *
  * Lines are six fixed categories of eight slots; an empty slot is simply skipped when picking. [orderedLines] is the
  * CNPC global toggle: false = random line each time, true = walk the filled slots in order.
+ *
+ * [faction], [dialogIds] and [linkedName] reference the world-level tables in
+ * [com.huashanlunjian.glbrender.npc.world.GlbNpcWorldData] by id/name, so the entity carries no copies of the names
+ * that a Global-tab rename would have to rewrite.
  */
 class GlbNpcAdvanced(
     /** `[category][slot]`, always [LINE_COUNT] × [LINES_PER_CATEGORY]. */
@@ -65,6 +69,16 @@ class GlbNpcAdvanced(
     var disablePitch: Boolean = false,
     /** Fixed [MAX_MARKS] slots; [GlbNpcMark.TYPE_NONE] slots are not drawn. */
     val marks: MutableList<GlbNpcMark> = MutableList(MAX_MARKS) { GlbNpcMark() },
+    /** World faction id (`GlbNpcWorldData.factions`) or [FACTION_NONE]. */
+    var faction: Int = FACTION_NONE,
+    /** Acquire and melee members of other factions on sight (CNPC "Attack other factions"). */
+    var attackOtherFactions: Boolean = false,
+    /** Join a same-faction member's fight when the attacker is identified (CNPC "Defending faction"). */
+    var defendFaction: Boolean = false,
+    /** Up to [MAX_DIALOG_SLOTS] world dialog ids offered when a player talks; 0 = empty slot. */
+    val dialogIds: MutableList<Int> = defaultDialogIds(),
+    /** Name from the world linked-NPC list (empty = none). CNPC's link is a scripting hook; ours is data-only. */
+    var linkedName: String = "",
 ) {
     fun copyAdvanced(): GlbNpcAdvanced = GlbNpcAdvanced(
         lines = MutableList(LINE_COUNT) { category ->
@@ -78,9 +92,17 @@ class GlbNpcAdvanced(
         stepSound = stepSound,
         disablePitch = disablePitch,
         marks = marks.map { it.copy() }.toMutableList(),
+        faction = faction,
+        attackOtherFactions = attackOtherFactions,
+        defendFaction = defendFaction,
+        dialogIds = dialogIds.toMutableList(),
+        linkedName = linkedName,
     )
 
     fun line(category: Int, slot: Int): GlbNpcLine = lines[category][slot]
+
+    /** The dialog ids actually bound (non-zero, in slot order). */
+    fun boundDialogIds(): List<Int> = dialogIds.filter { it > 0 }
 
     fun hasLines(category: Int): Boolean = lines[category].any { !it.isEmpty() }
 
@@ -117,6 +139,11 @@ class GlbNpcAdvanced(
             })
         }
         tag.put(KEY_MARKS, markList)
+        tag.putInt(KEY_FACTION, faction)
+        tag.putBoolean(KEY_ATTACK_OTHER_FACTIONS, attackOtherFactions)
+        tag.putBoolean(KEY_DEFEND_FACTION, defendFaction)
+        tag.putIntArray(KEY_DIALOG_IDS, dialogIds.toIntArray())
+        tag.putString(KEY_LINKED_NAME, linkedName)
     }
 
     /** Server-side clamp applied to every packet-carried copy (and every NBT load): lengths, ids, ranges. */
@@ -138,6 +165,11 @@ class GlbNpcAdvanced(
             mark.type = mark.type.coerceIn(GlbNpcMark.TYPE_NONE, GlbNpcMark.TYPE_STAR)
             mark.color = mark.color and 0xFFFFFF
         }
+        copy.faction = copy.faction.coerceAtLeast(FACTION_NONE)
+        for (index in copy.dialogIds.indices) {
+            copy.dialogIds[index] = copy.dialogIds[index].coerceAtLeast(0)
+        }
+        copy.linkedName = copy.linkedName.trim().take(MAX_LINKED_NAME)
         return copy
     }
 
@@ -153,6 +185,13 @@ class GlbNpcAdvanced(
         const val LINES_PER_CATEGORY = 8
         const val MAX_MARKS = 9
 
+        /** CNPC's dialog-option grid width. */
+        const val MAX_DIALOG_SLOTS = 12
+        const val MAX_LINKED_NAME = 64
+
+        /** "No faction" id; real faction ids are allocated by the world data and are always positive. */
+        const val FACTION_NONE = 0
+
         const val MAX_TEXT = 128
         const val MAX_SOUND = 128
 
@@ -160,6 +199,8 @@ class GlbNpcAdvanced(
 
         private fun defaultLines(): MutableList<MutableList<GlbNpcLine>> =
             MutableList(LINE_COUNT) { MutableList(LINES_PER_CATEGORY) { GlbNpcLine() } }
+
+        private fun defaultDialogIds(): MutableList<Int> = MutableList(MAX_DIALOG_SLOTS) { 0 }
 
         /** Trims and truncates a sound id (`minecraft:entity.player.hurt` style); empty stays empty. */
         private fun cleanResource(raw: String): String {
@@ -200,6 +241,14 @@ class GlbNpcAdvanced(
                     color = entry.getInt(KEY_MARK_COLOR),
                 )
             }
+            advanced.faction = tag.getInt(KEY_FACTION)
+            advanced.attackOtherFactions = tag.getBoolean(KEY_ATTACK_OTHER_FACTIONS)
+            advanced.defendFaction = tag.getBoolean(KEY_DEFEND_FACTION)
+            val dialogIds = tag.getIntArray(KEY_DIALOG_IDS)
+            for (index in 0 until minOf(dialogIds.size, MAX_DIALOG_SLOTS)) {
+                advanced.dialogIds[index] = dialogIds[index]
+            }
+            advanced.linkedName = tag.getString(KEY_LINKED_NAME)
             return advanced
         }
 
@@ -218,5 +267,10 @@ class GlbNpcAdvanced(
         private const val KEY_MARKS = "Marks"
         private const val KEY_MARK_TYPE = "Type"
         private const val KEY_MARK_COLOR = "Color"
+        private const val KEY_FACTION = "Faction"
+        private const val KEY_ATTACK_OTHER_FACTIONS = "AttackOtherFactions"
+        private const val KEY_DEFEND_FACTION = "DefendFaction"
+        private const val KEY_DIALOG_IDS = "DialogIds"
+        private const val KEY_LINKED_NAME = "LinkedName"
     }
 }

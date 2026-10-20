@@ -12,6 +12,12 @@ object GlbNpcClientHooks {
     /** Opens the dialog screen for [npcName] walking [lines]. Set only under the client dist. */
     var openDialog: ((npcName: Component, lines: List<String>) -> Unit)? = null
 
+    /**
+     * Opens the talk chooser for the NPC's bound world dialogs ([dialogIds], resolved from the client cache). If none of
+     * them exist any more, the implementation can fall back to [fallbackLines] (the inline `config.dialogLines`).
+     */
+    var openDialogChooser: ((npcName: Component, dialogIds: List<Int>, fallbackLines: List<String>) -> Unit)? = null
+
     /** Applies a world-data snapshot ([com.huashanlunjian.glbrender.npc.net.SyncWorldDataPacket]) to the client cache. */
     var applyWorldData: ((CompoundTag) -> Unit)? = null
 }

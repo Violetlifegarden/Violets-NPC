@@ -330,6 +330,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         // when profession==GUARD and a target is set below.
         goalSelector.addGoal(2, GlbGuardAttackGoal(this))
         goalSelector.addGoal(2, GlbRangedAttackGoal(this))
+        goalSelector.addGoal(2, GlbFactionAttackGoal(this))
         goalSelector.addGoal(3, GlbLeapGoal(this))
         goalSelector.addGoal(4, GlbPanicGoal(this))
         goalSelector.addGoal(5, GlbFleeGoal(this))
@@ -343,8 +344,9 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         goalSelector.addGoal(10, GlbWanderGoal(this))
         goalSelector.addGoal(11, GlbLookPlayerGoal(this))
         goalSelector.addGoal(12, RandomLookAroundGoal(this))
-        // The guard's target acquisition lives in the target selector; it sets getTarget() for the melee goal above.
+        // Target acquisition lives in the target selector; both goals only set getTarget() for the melee goals above.
         targetSelector.addGoal(1, GlbGuardTargetGoal(this))
+        targetSelector.addGoal(2, GlbFactionTargetGoal(this))
     }
 
     override fun addAdditionalSaveData(tag: CompoundTag) {
@@ -441,7 +443,34 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         } else {
             amount
         }
-        return super.hurt(source, scaled)
+        val hurt = super.hurt(source, scaled)
+        if (hurt && !level().isClientSide) defendFaction(source.entity)
+        return hurt
+    }
+
+    /**
+     * CustomNPC's "Defending faction": the wounded NPC takes the attacker as its own target (unless already fighting
+     * something) and wakes same-faction NPCs within [FACTION_ALERT_RANGE] that have no target, so
+     * [GlbFactionAttackGoal] executes on the next evaluation. Factionless NPCs and NPCs with the switch off do nothing.
+     */
+    private fun defendFaction(attacker: Entity?) {
+        val advanced = config.advanced
+        if (!advanced.defendFaction || advanced.faction == GlbNpcAdvanced.FACTION_NONE) return
+        val enemy = attacker as? LivingEntity ?: return
+        if (enemy === this || !enemy.isAlive) return
+        if (target == null && canAttack(enemy)) target = enemy
+        val allies = level().getEntitiesOfClass(GlbNpc::class.java, boundingBox.inflate(FACTION_ALERT_RANGE))
+        for (ally in allies) {
+            if (ally === this) continue
+            if (ally.config.advanced.faction != advanced.faction) continue
+            if (ally.target == null && ally.canAttack(enemy)) ally.target = enemy
+        }
+    }
+
+    /** True when both NPCs carry the same non-zero faction; used to keep teammates from hurting each other. */
+    private fun sharesFaction(other: GlbNpc): Boolean {
+        val mine = config.advanced.faction
+        return mine != GlbNpcAdvanced.FACTION_NONE && mine == other.config.advanced.faction
     }
 
     /** Knockback resistance: the same `2 - resistance` multiplier CustomNPC applies around vanilla knockback. */
@@ -452,6 +481,8 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
 
     /** Applies the configured on-hit effect after a successful melee hit (CNPC's melee potion effect). */
     override fun doHurtTarget(target: Entity): Boolean {
+        // Faction teammates cannot damage each other (CNPC faction rule); factionless NPCs keep vanilla behavior.
+        if (configReady && target is GlbNpc && sharesFaction(target)) return false
         val hit = super.doHurtTarget(target)
         if (hit && target is LivingEntity && configReady) {
             val stats = config.stats
@@ -628,14 +659,18 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         if (!level().isClientSide) {
             sayLine(GlbNpcAdvanced.LINE_INTERACT, player)
         }
-        // The dialog lines are already synced on config, so the client walks them in a screen with no server round trip.
+        // The dialog lines and the bound world-dialog ids are already synced, so the client opens its screen with no
+        // server round trip. Bound dialogs take precedence over the inline lines, like CNPC's option slots.
         if (level().isClientSide) {
+            val name = displayName ?: Component.translatable(type.descriptionId)
+            val dialogIds = config.advanced.boundDialogIds()
+            if (dialogIds.isNotEmpty()) {
+                GlbNpcClientHooks.openDialogChooser?.invoke(name, dialogIds, config.dialogLines)
+                return InteractionResult.SUCCESS
+            }
             val lines = config.dialogLines
             if (lines.isNotEmpty()) {
-                GlbNpcClientHooks.openDialog?.invoke(
-                    displayName ?: Component.translatable(type.descriptionId),
-                    lines,
-                )
+                GlbNpcClientHooks.openDialog?.invoke(name, lines)
                 return InteractionResult.SUCCESS
             }
         }
@@ -694,6 +729,9 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
 
         /** Squared distance (16 blocks, CNPC's nearby-chat range) that hears a spoken line. */
         private const val LINE_RANGE_SQR = 16.0 * 16.0
+
+        /** Radius in which a defend-faction NPC calls same-faction members to the fight. */
+        private const val FACTION_ALERT_RANGE = 16.0
 
         private const val KEY_INVENTORY = "GlbInventory"
         private const val KEY_HOME = "GlbHome"
