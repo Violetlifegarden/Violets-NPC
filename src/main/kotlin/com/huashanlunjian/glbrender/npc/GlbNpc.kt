@@ -2,9 +2,13 @@ package com.huashanlunjian.glbrender.npc
 
 import com.huashanlunjian.glbrender.npc.net.GlbNpcEditing
 import net.minecraft.core.BlockPos
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
+import net.minecraft.sounds.SoundEvent
 import net.minecraft.sounds.SoundEvents
 import net.minecraft.util.Mth
 import net.minecraft.world.ContainerHelper
@@ -107,6 +111,13 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
     /** Ticks accumulated for the 20-tick (one second) regeneration cadence. */
     private var regenTicks = 0
 
+    /** Per-category cursor used when [GlbNpcAdvanced.orderedLines] is on (server-side only, not persisted). */
+    private val lineCursors = IntArray(GlbNpcAdvanced.LINE_COUNT)
+
+    /** Cooldowns for the ambient world-line and nearby-NPC-line rolls. */
+    private var worldLineCooldown = 0
+    private var npcLineCooldown = 0
+
     override fun defineSynchedData(builder: SynchedEntityData.Builder) {
         super.defineSynchedData(builder)
         GlbNpcConfig.defineSynchedData(builder)
@@ -132,6 +143,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         }
         refreshWaterMalus()
         tickRegen()
+        tickLines()
     }
 
     /**
@@ -215,6 +227,95 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         }
     }
 
+    // ---- Advanced block: lines + voice sounds (CustomNPC DataAdvanced) ----
+
+    /**
+     * Rolls the two ambient line categories: world chatter (CNPC's 1-in-1800 tick roll with a 100-tick cooldown while
+     * idle) and greeting a nearby GLB NPC. Both are server-only and skip the scan entirely when the category is empty.
+     */
+    private fun tickLines() {
+        val advanced = config.advanced
+        if (worldLineCooldown > 0) worldLineCooldown--
+        if (npcLineCooldown > 0) npcLineCooldown--
+        if (isDeadOrDying || target != null) return
+        if (worldLineCooldown == 0 && advanced.hasLines(GlbNpcAdvanced.LINE_WORLD) &&
+            random.nextInt(WORLD_LINE_CHANCE) == 0
+        ) {
+            worldLineCooldown = WORLD_LINE_COOLDOWN
+            sayLine(GlbNpcAdvanced.LINE_WORLD, null)
+        }
+        if (npcLineCooldown == 0 && advanced.hasLines(GlbNpcAdvanced.LINE_NPC_INTERACT) &&
+            random.nextInt(NPC_LINE_CHANCE) == 0
+        ) {
+            val otherNearby = level().getEntitiesOfClass(GlbNpc::class.java, boundingBox.inflate(NPC_LINE_RANGE))
+                .any { it !== this }
+            if (otherNearby) {
+                npcLineCooldown = NPC_LINE_COOLDOWN
+                sayLine(GlbNpcAdvanced.LINE_NPC_INTERACT, null)
+            }
+        }
+    }
+
+    /**
+     * Picks a line from [category] (random, or slot order when [GlbNpcAdvanced.orderedLines] is on), substitutes
+     * `@target`, plays the line's sound and sends the text to players within [LINE_RANGE_SQR]. The text goes through
+     * chat rather than an overhead speech bubble: CNPC draws bubbles from a client-side packet system we do not have,
+     * while a chat message is server-local and needs no new payload.
+     */
+    private fun sayLine(category: Int, target: LivingEntity?) {
+        if (level().isClientSide) return
+        val advanced = config.advanced
+        val filled = advanced.filledLines(category)
+        if (filled.isEmpty()) return
+        val line = if (advanced.orderedLines) {
+            val index = Math.floorMod(lineCursors[category]++, filled.size)
+            filled[index]
+        } else {
+            filled[random.nextInt(filled.size)]
+        }
+        val text = if (target == null) line.text else line.text.replace("@target", target.name.string)
+        if (text.isNotBlank()) {
+            val message = Component.literal(text)
+            for (player in level().players()) {
+                if (player.distanceToSqr(this) <= LINE_RANGE_SQR) player.displayClientMessage(message, false)
+            }
+        }
+        playConfiguredSound(line.sound, 1.0f, getVoicePitch())
+    }
+
+    /** Resolves a sound id against the built-in registry; unknown/blank ids resolve to null (caller falls back). */
+    private fun configuredSound(id: String): SoundEvent? {
+        if (id.isEmpty()) return null
+        val location = ResourceLocation.tryParse(id) ?: return null
+        return BuiltInRegistries.SOUND_EVENT.get(location)
+    }
+
+    private fun playConfiguredSound(id: String, volume: Float, pitch: Float) {
+        configuredSound(id)?.let { playSound(it, volume, pitch) }
+    }
+
+    override fun getAmbientSound(): SoundEvent? =
+        (if (configReady) configuredSound(config.advanced.idleSound) else null) ?: super.getAmbientSound()
+
+    override fun getHurtSound(source: DamageSource): SoundEvent? =
+        (if (configReady) configuredSound(config.advanced.hurtSound) else null) ?: super.getHurtSound(source)
+
+    override fun getDeathSound(): SoundEvent? =
+        (if (configReady) configuredSound(config.advanced.deathSound) else null) ?: super.getDeathSound()
+
+    /** A configured step sound replaces the block's own footstep sound (vanilla step volume is 0.15). */
+    override fun playStepSound(pos: BlockPos, state: BlockState) {
+        val custom = if (configReady) configuredSound(config.advanced.stepSound) else null
+        if (custom == null) {
+            super.playStepSound(pos, state)
+            return
+        }
+        playSound(custom, 0.15f, getVoicePitch())
+    }
+
+    override fun getVoicePitch(): Float =
+        if (configReady && config.advanced.disablePitch) 1.0f else super.getVoicePitch()
+
     /**
      * Registers the goal set once. `Mob`'s constructor calls this before [config] exists, so the goals here must be
      * self-gating (they read [config] inside `canUse`, not in their constructors) — see [GlbWanderGoal] /
@@ -274,6 +375,7 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
      */
     override fun die(damageSource: DamageSource) {
         if (!level().isClientSide) {
+            sayLine(GlbNpcAdvanced.LINE_KILLED, damageSource.entity as? LivingEntity)
             dropConfiguredLoot()
             if (config.stats.hideKilledBody) {
                 hiddenCorpse = true
@@ -359,8 +461,19 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
                     this,
                 )
             }
+            if (!level().isClientSide) {
+                sayLine(GlbNpcAdvanced.LINE_ATTACK, target)
+                playConfiguredSound(config.advanced.angrySound, 1.0f, getVoicePitch())
+            }
         }
         return hit
+    }
+
+    /** CNPC's kill line: spoken when the NPC's blow is credited with killing a target. */
+    override fun killedEntity(serverLevel: ServerLevel, entity: LivingEntity): Boolean {
+        val credited = super.killedEntity(serverLevel, entity)
+        if (configReady) sayLine(GlbNpcAdvanced.LINE_KILL, entity)
+        return credited
     }
 
     /** CNPC `burnInSun`: catch fire in daylight when exposed to the sky (8 seconds, like vanilla undead). */
@@ -511,8 +624,11 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
             }
             return InteractionResult.sidedSuccess(level().isClientSide)
         }
-        // Plain right-click: talk. The dialog lines are already synced on config, so the client walks them in a screen
-        // with no server round trip; the server just consumes the interaction so it does not also trigger item use.
+        // Plain right-click: say the interact line (server-side; the text is sent to the interacting player) and talk.
+        if (!level().isClientSide) {
+            sayLine(GlbNpcAdvanced.LINE_INTERACT, player)
+        }
+        // The dialog lines are already synced on config, so the client walks them in a screen with no server round trip.
         if (level().isClientSide) {
             val lines = config.dialogLines
             if (lines.isNotEmpty()) {
@@ -568,6 +684,16 @@ class GlbNpc(type: EntityType<out PathfinderMob>, level: Level) : PathfinderMob(
         private const val DEFAULT_STEP_HEIGHT = 0.6
         /** CNPC's step height while mount control is active. */
         private const val MOUNT_STEP_HEIGHT = 1.1
+
+        /** Ambient line rolls (CNPC: 1/1800 per tick, 100-tick cooldown; NPC-greeting roll is our own slower cadence). */
+        private const val WORLD_LINE_CHANCE = 1800
+        private const val WORLD_LINE_COOLDOWN = 100
+        private const val NPC_LINE_CHANCE = 600
+        private const val NPC_LINE_COOLDOWN = 600
+        private const val NPC_LINE_RANGE = 3.0
+
+        /** Squared distance (16 blocks, CNPC's nearby-chat range) that hears a spoken line. */
+        private const val LINE_RANGE_SQR = 16.0 * 16.0
 
         private const val KEY_INVENTORY = "GlbInventory"
         private const val KEY_HOME = "GlbHome"

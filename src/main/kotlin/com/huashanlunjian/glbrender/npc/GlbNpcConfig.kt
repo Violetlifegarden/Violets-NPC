@@ -109,6 +109,30 @@ class GlbNpcConfig(private val npc: GlbNpc) {
     private var aiCache: GlbNpcAi? = null
 
     /**
+     * The Advanced-tab block (lines, voice sounds, overhead marks) as one synced compound, the same shape as [ai].
+     * Read caching is by tag identity; write changes through this property
+     * (`config.advanced = config.advanced.copyAdvanced().also { … }`).
+     */
+    var advanced: GlbNpcAdvanced
+        get() {
+            val tag = npc.entityData.get(DATA_ADVANCED)
+            if (tag !== advancedCacheTag) {
+                advancedCacheTag = tag
+                advancedCache = GlbNpcAdvanced.fromTag(tag)
+            }
+            return advancedCache!!
+        }
+        set(value) {
+            val tag = value.toTag()
+            advancedCacheTag = tag
+            advancedCache = value
+            npc.entityData.set(DATA_ADVANCED, tag)
+        }
+
+    private var advancedCacheTag: CompoundTag? = null
+    private var advancedCache: GlbNpcAdvanced? = null
+
+    /**
      * Per-instance max-health override, or [Float.NaN] to inherit the entity default. The attribute itself is
      * server-only and not readable on the client's entity copy, so this synced mirror is what the editor displays;
      * [GlbNpc.applyMaxHealth] is what actually pushes it onto the `MAX_HEALTH` attribute on the server.
@@ -237,6 +261,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         tag.putString(KEY_DROP_CHANCES, dropChances)
         tag.put(KEY_STATS, stats.toTag())
         tag.put(KEY_AI, ai.toTag())
+        tag.put(KEY_ADVANCED, advanced.toTag())
         return tag
     }
 
@@ -266,6 +291,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         dropChances = if (tag.contains(KEY_DROP_CHANCES)) tag.getString(KEY_DROP_CHANCES) else DEFAULT_DROP_CHANCES
         if (tag.contains(KEY_STATS)) stats = GlbNpcStats.fromTag(tag.getCompound(KEY_STATS)).coerced()
         if (tag.contains(KEY_AI)) ai = GlbNpcAi.fromTag(tag.getCompound(KEY_AI)).coerced()
+        if (tag.contains(KEY_ADVANCED)) advanced = GlbNpcAdvanced.fromTag(tag.getCompound(KEY_ADVANCED)).coerced()
     }
 
     companion object {
@@ -307,6 +333,8 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.COMPOUND_TAG)
         private val DATA_AI: EntityDataAccessor<CompoundTag> =
             SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.COMPOUND_TAG)
+        private val DATA_ADVANCED: EntityDataAccessor<CompoundTag> =
+            SynchedEntityData.defineId(GlbNpc::class.java, EntityDataSerializers.COMPOUND_TAG)
 
         private const val KEY_MODEL_ID = "GlbModelId"
         private const val KEY_SCALE = "GlbScale"
@@ -327,6 +355,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
         private const val KEY_DROP_CHANCES = "GlbDropChances"
         private const val KEY_STATS = "GlbStats"
         private const val KEY_AI = "GlbAi"
+        private const val KEY_ADVANCED = "GlbAdvanced"
         /** Read-only migration key from when this field was a Boolean. */
         private const val KEY_PBR_LEGACY = "GlbPbr"
 
@@ -417,6 +446,7 @@ class GlbNpcConfig(private val npc: GlbNpc) {
             builder.define(DATA_DROP_CHANCES, DEFAULT_DROP_CHANCES)
             builder.define(DATA_STATS, GlbNpcStats().toTag())
             builder.define(DATA_AI, GlbNpcAi().toTag())
+            builder.define(DATA_ADVANCED, GlbNpcAdvanced().toTag())
         }
     }
 }

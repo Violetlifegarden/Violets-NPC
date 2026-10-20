@@ -2,6 +2,7 @@ package com.huashanlunjian.glbrender.npc.net
 
 import com.huashanlunjian.glbrender.npc.GlbModels
 import com.huashanlunjian.glbrender.npc.GlbNpc
+import com.huashanlunjian.glbrender.npc.GlbNpcAdvanced
 import com.huashanlunjian.glbrender.npc.GlbNpcAi
 import com.huashanlunjian.glbrender.npc.GlbNpcConfig
 import com.huashanlunjian.glbrender.npc.GlbNpcStats
@@ -275,6 +276,42 @@ data class SetAiPacket(val entityId: Int, val ai: GlbNpcAi) : CustomPacketPayloa
     }
 }
 
+/**
+ * Replaces an NPC's whole Advanced block ([GlbNpcAdvanced]: lines, voice sounds, marks). Travels as one compound and is
+ * clamped via [GlbNpcAdvanced.coerced] before being stored; the block is read live by gameplay and the renderer, so no
+ * separate apply step exists (unlike Stats/AI, which push onto attributes/navigation).
+ */
+data class SetAdvancedPacket(val entityId: Int, val advanced: GlbNpcAdvanced) : CustomPacketPayload {
+    override fun type(): CustomPacketPayload.Type<out CustomPacketPayload> = TYPE
+
+    companion object {
+        val TYPE: CustomPacketPayload.Type<SetAdvancedPacket> =
+            CustomPacketPayload.Type(ResourceLocation.fromNamespaceAndPath("glbrender", "set_advanced"))
+
+        val STREAM_CODEC: StreamCodec<RegistryFriendlyByteBuf, SetAdvancedPacket> = StreamCodec.of(
+            { buf, packet ->
+                buf.writeVarInt(packet.entityId)
+                buf.writeNbt(packet.advanced.toTag())
+            },
+            { buf ->
+                SetAdvancedPacket(buf.readVarInt(), GlbNpcAdvanced.fromTag(buf.readNbt() ?: CompoundTag()))
+            },
+        )
+
+        fun handle(packet: SetAdvancedPacket, context: IPayloadContext) {
+            context.enqueueWork {
+                val player = context.player() as? ServerPlayer ?: return@enqueueWork
+                val npc = player.level().getEntity(packet.entityId) as? GlbNpc ?: return@enqueueWork
+                if (!GlbNpcEditing.canEdit(player, npc)) {
+                    LOGGER.warn("glbrender: rejected set_advanced for {} from {} (no editing session)", packet.entityId, player.name)
+                    return@enqueueWork
+                }
+                npc.config.advanced = packet.advanced.coerced()
+            }
+        }
+    }
+}
+
 /** Registers the payloads on the mod bus. Called from [com.huashanlunjian.glbrender.GlbRenderContent.register] (both dists). */
 object GlbRenderNetwork {
     fun register(bus: IEventBus) {
@@ -294,6 +331,9 @@ object GlbRenderNetwork {
                 }
                 registrar.playToServer(SetAiPacket.TYPE, SetAiPacket.STREAM_CODEC) { packet, context ->
                     SetAiPacket.handle(packet, context)
+                }
+                registrar.playToServer(SetAdvancedPacket.TYPE, SetAdvancedPacket.STREAM_CODEC) { packet, context ->
+                    SetAdvancedPacket.handle(packet, context)
                 }
             },
         )
