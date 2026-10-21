@@ -23,3 +23,7 @@ replay_pid*
 # OS
 Thumbs.db
 .DS_Store
+
+# vendored tool binaries: the runtime DLL is tracked, debug symbols and archives are not
+*.pdb
+tools/assimp/assimp.zip

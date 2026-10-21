@@ -1,0 +1,39 @@
+GLB Render (glbrender)
+Copyright (C) 2026 华山抡舰 and contributors
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
+Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
+any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+details.
+
+You should have received a copy of the GNU Lesser General Public License and the GNU General Public License along
+with this program (see LICENSE and LICENSE.GPL-3.0). If not, see <https://www.gnu.org/licenses/>.
+
+--------------------------------------------------------------------------------
+Third-party components
+--------------------------------------------------------------------------------
+
+BlazeRod renderer (package top.fifthlight.blazerod)
+    The rendering core of this project (glTF loading, GPU layouts, render graph, animation runtime) is a port of the
+    BlazeRod renderer by FifthLight, used as the rendering layer of the ArmorStand project. It is licensed under the
+    GNU Lesser General Public License v3.0 or later.
+    Ported code lives under src/main/kotlin/top/fifthlight/blazerod/, with the BOM-free glue in
+    com.huashanlunjian.glbrender. Modifications made for this project include: a backend seam that removes all
+    Minecraft types from the core (GlbBackend), a Minecraft-side sampler/texture binding layer, batching/instancing,
+    PBR/unlit material variants, and the NPC/editor on top.
+
+Khronos glTF Sample Models
+    test-models/CesiumMan.glb is "CesiumMan" by Cesium, distributed with the Khronos glTF Sample Models under
+    Creative Commons Attribution 4.0 (CC-BY 4.0).
+    test-models/InterpolationTest.glb is from the same Khronos sample set.
+
+Assimp (tools/assimp/win/Release/assimp-vc143-mt.dll)
+    A prebuilt binary of the Open Asset Import Library (assimp), used only by the development-time FBX conversion
+    helper. Assimp is licensed under the BSD 3-Clause license; see the assimp project for details.
+
+CustomNPCs
+    The NPC editor's layout and feature set were designed after CustomNPCs. This project contains no CustomNPCs
+    source code and does not link against it at runtime.
