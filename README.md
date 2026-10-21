@@ -1,4 +1,4 @@
-# GLB Render (glbrender)
+# Violet NPC 
 
 A standalone glTF/GLB model rendering mod for **Minecraft 1.21.1 / NeoForge 21.1.228**. It replaces the player's
 model with a GLB and adds a GLB-rendered NPC entity with its own behavior and editor.
