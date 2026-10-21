@@ -33,6 +33,9 @@ remaining editor rows and world managers are visible placeholders (see *Not impl
 - Minecraft 1.21.1
 - NeoForge 21.1.228 (pinned in `gradle.properties`)
 
+Gradle must itself run on JDK 21 — the NeoForge moddev plugin loads in the Gradle JVM before toolchains apply. If
+`JAVA_HOME` points at an older JDK, either fix it or uncomment `org.gradle.java.home` in `gradle.properties`.
+
 ## Building
 
 ```bash
