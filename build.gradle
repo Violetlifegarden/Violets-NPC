@@ -80,6 +80,13 @@ dependencies {
 
     // No mixin annotation processor on NeoForge 1.21.1: the game runs Mojang-mapped at runtime, so
     // @Inject targets use mojmap names and need no refmap. Mixin API comes transitively from NeoForge.
+
+    // The mod is Kotlin, and a plain NeoForge install provides none of its runtime, so JarJar carries it inside
+    // the jar. Dev runs get the same libraries through additionalRuntimeClasspathConfiguration above.
+    jarJar "org.jetbrains.kotlin:kotlin-stdlib:${kotlin_version}"
+    jarJar "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:${serialization_version}"
+    jarJar "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:${serialization_version}"
+    jarJar "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:${coroutines_version}"
 }
 
 tasks.withType(JavaCompile).configureEach {
